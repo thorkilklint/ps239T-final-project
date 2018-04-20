@@ -1,0 +1,596 @@
+---
+title: "Text Analysis - Discriminating words"
+author: "Thorkil Klint"
+date: "4/4/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Goals of this script
+This script aims at conducting a discriminating words analysis across different party blocs in the Danish parliament. Following the bag of words assumption, I try to distinguish the use of words in statements made by 1) The government parties, 2) The right wing parti, Dansk Folkeparti, and 3) the left wing opposition.
+
+This script contains both my text pre processing and the text analysis itself. As results in text analysis are heavily dependent on the pre processing, I have put them in the same script
+
+## 2. Necessities
+```{r, message=F}
+rm(list=ls())
+library(stringr) #For working with string data
+library(tm) # Framework for text mining
+library(ggplot2) # for plotting word frequencies
+library(dplyr)
+library(RTextTools) # a machine learning package for text classification written in R
+library(SnowballC) # for stemming
+library(data.table)
+library(wordcloud2) # for wordclouds
+library(RColorBrewer) # for color palettes
+library(matrixStats) # for statistics
+library(ggplot2) #For plotting
+
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data")
+```
+
+# STEP 1: PRE PROCESS AND CLEAN THE TEXT
+I start by opening my statement dataset
+```{r}
+#Open the data
+getwd()
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+immigration_debate_text_data<-readRDS("immigration_debate_text_data.Rda")
+```
+When using the tm-package to structure text data in the corpus format, the importet data-set has to have the following collumns in order: 
+1. doc_id - a unique string for each document
+2. text - the text to be examined
+... - any other columns will be automatically cataloagued as meta-data.
+
+I set up the doc_id variable. I give this variable intuitive names based on the party of the speaker, as this allows me to split the dataset into different parties / political blocs later on
+```{r}
+#A doc ID variable with party name and number of statement, so that I can sort
+immigration_debate_text_data$doc_id <- paste0(immigration_debate_text_data$party, "_",
+                                             1:nrow(immigration_debate_text_data))
+```
+Further, the text data contains to symbols, not recognized by R as punctuation, namely » and «. I remove these.
+```{r}
+#The remove unctuation function further on does not remove » or «
+sum(str_detect(immigration_debate_text_data$text, "«"))
+sum(str_detect(immigration_debate_text_data$text, "»"))
+
+immigration_debate_text_data$text<-str_replace_all(immigration_debate_text_data$text, pattern="«|»", "")
+
+sum(str_detect(immigration_debate_text_data$text, "«"))
+sum(str_detect(immigration_debate_text_data$text, "»"))
+```
+
+Now, I just have to reorder the variables
+```{r}
+#Reorder the variables
+immigration_debate_text_data<-select(immigration_debate_text_data, doc_id, text,name, time, party, academic)
+
+#Check out the structure
+str(immigration_debate_text_data)
+```
+
+## STEP 1.1 Read in as corpus
+I read in the data frame as a corpus with the TM-package. I use the DataFrameSource-command to get the meta data
+```{r}
+#The DataframeSource() command allows me to import meta data
+source<-DataframeSource(immigration_debate_text_data)
+```
+Now, I can set up a versitile corpus (not saved on my computer)
+```{r}
+#Make the Corpus
+text_corpus <- VCorpus(source)
+```
+And check out that it worked!
+```{r}
+#Inspect statement 1. The text corpus is a list - the first element is the content, the second is metadata
+## Content of text 1
+text_corpus[[1]][1]
+
+## Metadata of text 1
+meta(text_corpus[1])
+
+#Metadata of text 1, name only
+meta(text_corpus[1])$name
+```
+
+## STEP 1.2 Cleaning the text
+I use the TM-package to set up a function for cleaning up the text. This function uses five kinds of stopwords: 
+- Regular stopworts from the Stopwords tm function in Danish
+- Extra stopwords to be used before the stemming (like "tak", which is used a lot due to formalities in parliament)
+- Extra stopwords to be used after stemming (like "minist", short for minister), which is said a lot in parliamentary debates, but does not affect the way you address immigration
+- Party stopwords, formalized as the names of the parties, which are used a lot (Dansk folkeparti means...)
+- Member stopwords, a vector with all member first and last names - these are used a lot due to formalities as well, but are not interesting
+
+```{r}
+#I set up a vector of extra stopword
+
+#Stowords before stemming
+extra_stopwords_pre_stem<-c("formand","formanden", "kan", "ved", "spørgsmål", "folkeparti", "tak", "derfor")
+#Stopwords after stemming
+extra_stopwords_post_stem<-c("sig", "minist", "ordfør", "gør","regering","lovforslag","forslag")
+#Party stopwords
+party_stopwords<-c("Dansk Folkeparti", "Dansk Folkepartis",
+                   "Socialdemokratiet","Socialdemokratiets",
+                   "Venstre","Venstres",
+                   "Konservativt Folkeparti","Konservativt Folkepartis",
+                   "Alternativet", "Alternativets",
+                   "Enhedslisten","Enhedslistens",
+                   "Liberal Alliance", "Liberal Alliances",
+                   "Radikale Venstre", "Radikale Venstres",
+                   "Socialistisk Folkeparti", "Socialistisk Folkepartis")
+
+##Member names stopword
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data")
+all_members_df<-readRDS("all_members_data.Rda")
+member_first_last_name<-unlist(strsplit(all_members_df$name, " "))
+
+#A clean corpus function
+clean_corpus <- function(corpus){
+  corpus <- tm_map(corpus, removeWords, c(party_stopwords,member_first_last_name)) #Remove parties and members
+  corpus <- tm_map(corpus, content_transformer(tolower)) #Make everything lower case
+  corpus <- tm_map(corpus, removePunctuation) #Remove punctuation from the statements - does not remove » or «
+  corpus <- tm_map(corpus, removeNumbers) #Removes numbers from the data
+  corpus <- tm_map(corpus, removeWords, c(stopwords("da"), 
+                                          extra_stopwords_pre_stem))
+  corpus <- tm_map(corpus, content_transformer(stemDocument), language = "danish") #Stem words
+    corpus <- tm_map(corpus, removeWords, c(stopwords("da"), 
+                                            extra_stopwords_post_stem)) #Remove stopwords
+  corpus <- tm_map(corpus, stripWhitespace) 
+  return(corpus)
+}
+```
+Now, I can use this function on my corpus, and check out the changes it made: 
+```{r}
+#Use it on my corpus
+clean_corp<-clean_corpus(text_corpus)
+
+#Check it out
+clean_corp[[1]][1]
+text_corpus[[1]][1]
+```
+
+## STEP 1.3 Creating a document term-matrix for each document
+Now, I can make my document term matrix, again with the TM-package
+```{r}
+#Create matrix
+dtm<-DocumentTermMatrix(clean_corp)
+
+#Take a quick look
+dim(dtm)
+inspect(dtm[1:5,4500:4505])
+```
+
+# STEP 2: ANALYSE THE DATA
+To get a quick overview of the data, I set up a word-cloud
+```{r}
+#Make a term document matrix (words as rows)
+tdm <- TermDocumentMatrix(clean_corp)
+m <- as.matrix(tdm) #Make it into a matrix
+v <- sort(rowSums(m),decreasing=TRUE) #Sort based on occurences
+d <- data.frame(word = names(v),freq=v) #Make a dataframe of occurences
+head(d, 5) #See the five most used words
+
+#Set up a color vector
+colorVec = colorRampPalette(c("#151A64", "#4292C6"))(nrow(d)) # creating automatically fading palette
+
+#Make the wordcloud
+set.seed(2345)
+wordcloud2(data=d, rotateRatio = 0,
+          color = colorVec)
+```
+
+For my analysis, an investigation of distinctive words is more interesting - what seperates the way one party talks from the others?
+
+## STEP 2.1: Unique Word Use
+```{r}
+# turn DTM into dataframe
+dtm.m <- as.data.frame(as.matrix(dtm))
+#I have intuitive rownames
+#sort(row.names(dtm.m))
+
+#Now I sort after the row names, as these start with the party name
+dtm.m.sort <- dtm.m[ order(row.names(dtm.m)), ]
+
+#I ad a number indicator, to sort in the dataset
+dtm.m.sort$NumberItem<-1:nrow(dtm.m.sort)
+
+#And view the data
+#View(dplyr::select(dtm.m.sort, NumberItem))
+```
+
+Now, I can make the subset data frames. I start by making a subset for each party, and then I collect them into four broad blocs: 
+
+- The government
+- The right wing, government supporting party The Danish Peoples Party
+- The middle-opposition party, The Social Democrats
+- The left wing opposition parties
+
+```{r}
+# Subset into a dtms for each party
+dtm.alt <- dtm.m.sort[dtm.m.sort$NumberItem<44,]
+dtm.df <- dtm.m.sort[dtm.m.sort$NumberItem>45 & dtm.m.sort$NumberItem<184,]
+dtm.el <- dtm.m.sort[dtm.m.sort$NumberItem>185 & dtm.m.sort$NumberItem<263,]
+dtm.kf <- dtm.m.sort[dtm.m.sort$NumberItem>264 & dtm.m.sort$NumberItem<310,]
+dtm.la <- dtm.m.sort[dtm.m.sort$NumberItem>311 & dtm.m.sort$NumberItem<388,]
+dtm.rv <- dtm.m.sort[dtm.m.sort$NumberItem>389 & dtm.m.sort$NumberItem<416,]
+dtm.s <- dtm.m.sort[dtm.m.sort$NumberItem>417 & dtm.m.sort$NumberItem<553,]
+dtm.sf <- dtm.m.sort[dtm.m.sort$NumberItem>554 & dtm.m.sort$NumberItem<594,]
+dtm.v <- dtm.m.sort[dtm.m.sort$NumberItem>595 & dtm.m.sort$NumberItem<773,]
+
+# Make one for government and leftwing
+dtm.leftwing<-rbind(dtm.el,dtm.rv,dtm.sf,dtm.alt)
+dtm.gov<-rbind(dtm.v,dtm.la,dtm.kf)
+```
+
+Now, I can sum word usage counts across all statements for the different parties and blocs
+```{r}
+dtm.alt <- colSums(dtm.alt)
+dtm.df <- colSums(dtm.df)
+dtm.el <- colSums(dtm.el)
+dtm.kf <- colSums(dtm.kf)
+dtm.la <- colSums(dtm.la)
+dtm.rv <- colSums(dtm.rv)
+dtm.s <- colSums(dtm.s)
+dtm.sf <- colSums(dtm.sf)
+dtm.v <- colSums(dtm.v)
+
+dtm.gov<-colSums(dtm.gov)
+dtm.leftwing<-colSums(dtm.leftwing)
+```
+
+And then, to use them for analysis, I put them back in a data frame
+```{r}
+#Put them back in a dataframe for blocks
+df_all_blocks <- data.frame(rbind(dtm.gov,
+                       dtm.df,
+                       dtm.s,
+                       dtm.leftwing))
+
+#And remove the number item
+df_all_blocks<-dplyr::select(df_all_blocks, -NumberItem)
+```
+
+Now, I can sort my dataset, and make a vector for all the words, used by only one of the four blocks:
+```{r}
+# Get words where one other parties usage is 0
+solely_gov <- unlist(df_all_blocks[1,dtm.df==0 & dtm.s==0 & dtm.leftwing==0])
+solely_gov<-solely_gov[order(solely_gov, decreasing = T)]
+
+# Get words where one other parties usage is 0
+solely_df <- unlist(df_all_blocks[2,dtm.gov==0 & dtm.s==0 & dtm.leftwing==0])
+solely_df<-solely_df[order(solely_df, decreasing = T)]
+
+# Get words where one other parties usage is 0
+solely_s <- unlist(df_all_blocks[3,dtm.gov==0 & dtm.leftwing==0 & dtm.df==0])
+solely_s<-solely_s[order(solely_s, decreasing = T)]
+
+# Get words where one other parties usage is 0
+solely_leftwing <- unlist(df_all_blocks[4,dtm.gov==0 & dtm.s==0 & dtm.df==0])
+solely_leftwing<-solely_leftwing[order(solely_leftwing, decreasing = T)]
+```
+
+And now, I can check these words out
+```{r}
+solely_gov[1:10]
+solely_df[1:10]
+solely_s[1:10]
+solely_leftwing[1:10]
+```
+And these are actually interesting! Therefore, I set up a plot for the right wing party DF and the left wing parties
+
+DF plot
+```{r}
+#Make a dataframe for plotting
+df_plot<-as.data.frame(solely_df[1:10])
+#Make a variable of the names
+df_plot$names<-names(solely_df[1:10])
+#Order the names after the times a word is used
+df_plot$names <- factor(df_plot$names, levels = df_plot$names[order(-df_plot$solely_df[1:10])])
+
+#Make the plot
+df_barplot<- ggplot(df_plot, aes(x=names, y=solely_df[1:10]))+
+  geom_histogram(stat="identity")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = -20, hjust = 0, size= 11),
+        axis.title.x = element_blank())+
+  ylab("Number of words-uses")+
+  labs(title="Unique words, only used by Dansk Folkeparti")
+```
+Leftwing plot
+```{r}
+#Make a dataframe for plotting
+leftwing_plot<-as.data.frame(solely_leftwing[1:10])
+#Make a variable of the names
+leftwing_plot$names<-names(solely_leftwing[1:10])
+#Order the names after the times a word is used
+leftwing_plot$names <- factor(leftwing_plot$names, levels = leftwing_plot$names[order(-leftwing_plot$solely_leftwing[1:10])])
+
+#Make the plot
+leftwing_barplot<- ggplot(leftwing_plot, aes(x=names, y=solely_leftwing[1:10]))+
+  geom_histogram(stat="identity")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = -20, hjust = 0, size= 11),
+        axis.title.x = element_blank())+
+  ylab("Number of words-uses")+
+  labs(title="Unique words, only used by the Left wing opposition")
+
+```
+Plot them together
+```{r}
+#Function I have used in other work earlier - it makes it possible to generate multiple ggplots next to oneanother via the grid-fucntion. Found on stack.overflow
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+multiplot(df_barplot, leftwing_barplot)
+```
+
+## STEP 2.2 Differences in averages by using proportions
+To complement the analysis above, I investigate the average us of words across the parties - it takes three steps: 
+
+1. Normalize the dtm from counts to proportions
+2. Take the difference between one blocs's proportion of a word and another bloc's proportion of the same word.
+3. Find the words with the highest absolute difference.
+
+```{r}
+# normalize into proportions
+rowTotals <- rowSums(df_all_blocks) #create column with row totals, total number of words per document
+head(rowTotals)
+df_all_blocks <- df_all_blocks/rowTotals #change frequencies to proportions
+df_all_blocks[,1:5] # how we have proportions.
+
+# get difference in proportions
+means.gov <- df_all_blocks[1,]
+means.df <- df_all_blocks[2,]
+means.s <- df_all_blocks[3,]
+means.leftwing <- df_all_blocks[4,]
+
+#Calculate the difference
+score_gov_leftwing <- unlist(means.gov - means.leftwing) ##Government compared to leftwing
+score_df_leftwing <- unlist(means.df - means.leftwing)##DF compared to leftwing
+score_gov_df <- unlist(means.gov - means.df) ##Government compared to DF
+```
+And now, I can compare across theoretically relevant dimensions
+
+### 2.2.1 Government vs. Leftwing
+I start by finding the words with the highest difference in proportions between the government and the leftwing parties
+```{r}
+# find words with highest difference
+score_gov_leftwing <- sort(score_gov_leftwing, decreasing=T) #Government compared to the leftwing
+head(score_gov_leftwing,10) # Top words for government
+tail(score_gov_leftwing,10) # Top words for leftwin
+```
+And then, I can make a plot
+```{r}
+#Make a dataframe for plotting
+leftwing_gov_plot<-as.data.frame(score_gov_leftwing[c(1:10,5430:5439)])
+#Make a variable of the names
+leftwing_gov_plot$names<-names(score_gov_leftwing[c(1:10,5430:5439)])
+#Rename
+names(leftwing_gov_plot)[names(leftwing_gov_plot) == "score_gov_leftwing[c(1:10, 5430:5439)]"] <- "value"
+
+#Order the names after the times a word is used
+leftwing_gov_plot$names <- factor(leftwing_gov_plot$names, levels = leftwing_gov_plot$names[order(-leftwing_gov_plot$value)])
+
+#Make the plot
+ggplot(leftwing_gov_plot, aes(x=names, y=value))+
+  geom_histogram(stat="identity")+
+  theme_minimal()+
+  coord_flip()+
+  theme(axis.text.y = element_text(size= 11),
+        axis.title.y = element_blank())+
+  ylab("Difference in proportion of words")+
+  labs(title="Leftwing vs. Government")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#For presentation
+#ggplot(leftwing_gov_plot, aes(x=names, y=value))+
+  #geom_histogram(stat="identity")+
+  #theme_minimal()+
+  #coord_flip()+
+  #theme(axis.text.y = element_text(size= 15),
+        #axis.title.y = element_blank(),
+        #title=element_text(size=18),
+        #axis.title.x=element_text(size=15))+
+  #ylab("Difference in proportion of words")+
+  #labs(title="Leftwing vs. Government")+
+  #theme(plot.title = element_text(hjust = 0.5))
+```
+
+### 2.2.2 Dansk Folkeparti vs. Leftwing
+Now, I can find the words with the highest difference in proportions between the Danish People's party and the leftwing parties
+```{r}
+# find words with highest difference
+score_df_leftwing <- sort(score_df_leftwing, decreasing=T) #Government compared to the leftwing
+head(score_df_leftwing,10) # Top words for government
+tail(score_df_leftwing,10) # Top words for leftwin
+```
+
+Make a plot
+```{r}
+#Make a dataframe for plotting
+leftwing_df_plot<-as.data.frame(score_df_leftwing[c(1:10,5430:5439)])
+#Make a variable of the names
+leftwing_df_plot$names<-names(score_df_leftwing[c(1:10,5430:5439)])
+#Rename
+names(leftwing_df_plot)[names(leftwing_df_plot) == "score_df_leftwing[c(1:10, 5430:5439)]"] <- "value"
+
+#Order the names after the times a word is used
+leftwing_df_plot$names <- factor(leftwing_df_plot$names, levels = leftwing_df_plot$names[order(-leftwing_df_plot$value)])
+
+#Make the plot
+ggplot(leftwing_df_plot, aes(x=names, y=value))+
+  geom_histogram(stat="identity")+
+  theme_minimal()+
+  coord_flip()+
+  theme(axis.text.y = element_text(size= 11),
+        axis.title.y = element_blank())+
+  ylab("Difference in proportion of words")+
+  labs(title="Leftwing vs. Dansk Folkeparti")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#Make the plot for presentation
+#ggplot(leftwing_df_plot, aes(x=names, y=value))+
+  #geom_histogram(stat="identity")+
+  #theme_minimal()+
+  #coord_flip()+
+  #theme(axis.text.y = element_text(size= 15),
+        #axis.title.y = element_blank(),
+        #title=element_text(size=18),
+        #axis.title.x=element_text(size=15))+
+  #ylab("Difference in proportion of words")+
+  #labs(title="Leftwing vs. Dansk Folkeparti")+
+  #theme(plot.title = element_text(hjust = 0.5))
+```
+
+### 2.2.3 Dansk Folkeparti vs. Leftwing
+Now, finally, I can look at words with the highest difference in proportions between the Government and the Danish People's party
+```{r}
+# find words with highest difference
+score_gov_df <- sort(score_gov_df, decreasing=T) #Government compared to the leftwing
+head(score_gov_df,10) # Top words for government
+tail(score_gov_df,10) # Top words for leftwin
+```
+
+## STEP 2.3 Standardized Mean Difference
+The above investigation does not take the the variability in word use into a count. E.g. it might be, that the differences above are driven by specific party members talking different than the party in general.I try to take this into account, by setting up a metric that takes the variability of word use into account
+
+```{r}
+# Subset into 2 dtms for each party
+dtm.alt <- dtm.m.sort[dtm.m.sort$NumberItem<44,]
+dtm.df <- dtm.m.sort[dtm.m.sort$NumberItem>45 & dtm.m.sort$NumberItem<184,]
+dtm.el <- dtm.m.sort[dtm.m.sort$NumberItem>185 & dtm.m.sort$NumberItem<263,]
+dtm.kf <- dtm.m.sort[dtm.m.sort$NumberItem>264 & dtm.m.sort$NumberItem<310,]
+dtm.la <- dtm.m.sort[dtm.m.sort$NumberItem>311 & dtm.m.sort$NumberItem<388,]
+dtm.rv <- dtm.m.sort[dtm.m.sort$NumberItem>389 & dtm.m.sort$NumberItem<416,]
+dtm.s <- dtm.m.sort[dtm.m.sort$NumberItem>417 & dtm.m.sort$NumberItem<553,]
+dtm.sf <- dtm.m.sort[dtm.m.sort$NumberItem>554 & dtm.m.sort$NumberItem<594,]
+dtm.v <- dtm.m.sort[dtm.m.sort$NumberItem>595 & dtm.m.sort$NumberItem<773,]
+
+# Make one for government and leftwing
+dtm.leftwing<-rbind(dtm.el,dtm.rv,dtm.sf,dtm.alt)
+dtm.gov<-rbind(dtm.v,dtm.la,dtm.kf)
+
+#And remove the number item
+dtm.leftwing<-dplyr::select(dtm.leftwing, -NumberItem)
+dtm.gov<-dplyr::select(dtm.gov, -NumberItem)
+dtm.df<-dplyr::select(dtm.df, -NumberItem)
+```
+
+Now, I can calculate means and variation on word use
+```{r}
+# calculate means and vars for all three blocs
+means.df <- colMeans(dtm.df)
+var.df <- colVars(as.matrix(dtm.df))
+
+means.gov <- colMeans(dtm.gov)
+var.gov <- colVars(as.matrix(dtm.gov))
+
+means.leftwing<-colMeans(dtm.leftwing)
+var.leftwing <- colVars(as.matrix(dtm.leftwing))
+```
+
+And then, I can compare as before, by getting and plotting the biggest differences between the blocs
+
+### 2.3.1 Government vs. Leftwing
+```{r}
+#Government vs. Leftwing
+num <- (means.gov - means.leftwing)
+denom <- sqrt((var.gov/nrow(dtm.gov)) + (var.leftwing/nrow(dtm.leftwing)))
+score <- num /denom
+
+# sort and view
+score <- sort(score, decreasing = TRUE)
+head(score,10) # top Leftwing words
+tail(score,10) # top Government words
+
+#Make a dataframe for plotting
+leftwing_gov_plot<-as.data.frame(score[c(1:10,4324:4333)])
+#Make a variable of the names
+leftwing_gov_plot$names<-names(score[c(1:10,4324:4333)])
+#Rename
+names(leftwing_gov_plot)[names(leftwing_gov_plot) == "score[c(1:10, 4324:4333)]"] <- "value"
+
+#Order the names after the times a word is used
+leftwing_gov_plot$names <- factor(leftwing_gov_plot$names, levels = leftwing_gov_plot$names[order(-leftwing_gov_plot$value)])
+
+#Make the plot
+ggplot(leftwing_gov_plot, aes(x=names, y=value))+
+  geom_histogram(stat="identity")+
+  theme_minimal()+
+  coord_flip()+
+  theme(axis.text.y = element_text(size= 11),
+        axis.title.y = element_blank())+
+  ylab("Difference in average/variance of words")+
+  labs(title="Leftwing vs. Government")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### 2.3.2 Dansk Folkeparti vs. Leftwing
+```{r}
+#DF vs. Leftwing
+num <- (means.df - means.leftwing)
+denom <- sqrt((var.df/nrow(dtm.df)) + (var.leftwing/nrow(dtm.leftwing)))
+score <- num /denom
+
+# sort and view
+score <- sort(score, decreasing = TRUE)
+head(score,10) # top Leftwing words
+tail(score,10) # top Government words
+
+#Make a dataframe for plotting
+leftwing_df_plot<-as.data.frame(score[c(1:10,3443:3452)])
+#Make a variable of the names
+leftwing_df_plot$names<-names(score[c(1:10,3443:3452)])
+#Rename
+names(leftwing_df_plot)[names(leftwing_df_plot) == "score[c(1:10, 3443:3452)]"] <- "value"
+
+#Order the names after the times a word is used
+leftwing_df_plot$names <- factor(leftwing_df_plot$names, levels = leftwing_df_plot$names[order(-leftwing_df_plot$value)])
+
+#Make the plot
+ggplot(leftwing_df_plot, aes(x=names, y=value))+
+  geom_histogram(stat="identity")+
+  theme_minimal()+
+  coord_flip()+
+  theme(axis.text.y = element_text(size= 11),
+        axis.title.y = element_blank())+
+  ylab("Difference in average/variance of words")+
+  labs(title="Leftwing vs. DF")+
+  theme(plot.title = element_text(hjust = 0.5))
+```

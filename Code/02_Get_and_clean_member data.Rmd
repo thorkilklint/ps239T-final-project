@@ -1,0 +1,219 @@
+---
+title: "Parliament Member Data"
+author: "Thorkil"
+date: "1/3/2018"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Set up necessities
+```{r, message=F}
+library(httr) #To access and get data from the api
+library(dplyr) #To clean up the new data data
+library(rebus) #An intuitive guide to regular expressions
+library(stringr) #To work with strings in a concise way
+library(ggplot2) #For visualization
+library(ggthemes) #For filling of plots
+```
+
+# 1. The goals of this script
+This script downloads data from the Danish Parliament API to produce a dataframe with parliament member data, containing 1) Member name, 2) Member party and 3) Member education
+
+# STEP 1: Getting the membership data
+Bjørn has made the skeleton of a wicked function, that gets data from the Folketinget API and puts it in a data frame format. I have fine-tuned this function, by adding two arguments: A filter_equal argument, allowing one to restrict the search to data where a given parameter is equal to a character vector, and a filter_contain argument, allowing one to restrict the search to data where a given parameter contains a character vector. By using this function, I can get a data-set of all parliament member names!
+
+I setup the function, that allows me to get data from the Folketinget API
+```{r}
+collect_ft_data <- function(url_basic, parameter_vector, max_obs, filter_equal=NULL, filter_contain=NULL){
+  ### The following function collects data from the API of the Danish Parliament
+  ### The function needs three inputs and returns a dataframe:
+  ###     1) A URL provided by the API (www.http://oda.ft.dk/) with the data of interest (e.g.www.http://oda.ft.dk/api/Afstemning?$inlinecount=allpages).
+  ###     2) A character vetor with the names of parameters you are interested in (e.g. c("id", "vedtage", "typeid")). The maximum number of variables is 15.
+  ###     3) The number of observations you want to collect. Default is all observations.
+  ###     4) A FILTER FOR THE SEARCH, CONTAINS VECTOR WITH c("attribute", "search.term")
+  
+  #Making the filter into url, if one of them is specified
+  if (length(filter_equal)>1){
+    chr.filter <- c("&$filter=", URLencode(filter_equal[1], reserved=T),"%20eq%20",URLencode(filter_equal[2], reserved=T))
+  } else if (length(filter_contain)>1){
+    chr.filter <- c("&$filter=substringof('", URLencode(filter_contain[2], reserved=T),"',", URLencode(filter_contain[1], reserved=T),")")
+  } else {
+    chr.filter <- NULL
+  }
+  
+  #Make the new filter URL
+  filter_url <- paste(chr.filter, collapse="")
+  #combine with entire URL
+  full_url <- paste0(url_basic, filter_url, collapse="")
+  
+  # Making a GET-request
+  data_page <- GET(full_url)
+  data_content <- content(data_page)
+  num_obs <- data_content$odata.count
+  print(paste0("The dataset has ", num_obs, " observations"))
+  
+  # Creating empty dataframe
+  df <- data.frame(NA) #Make dataset full of NA
+  for (i in parameter_vector){df[,i] <- NA} #Make a collumn for each parameter
+  df <- df[-1] #Removes first variable from empty df
+  
+  # Setting the number of data observations that the function collects 
+  if(missing(max_obs)) {
+    obs_collect <- num_obs #Default is all observation
+  } else {
+    obs_collect <- max_obs #Else the specified amount
+  }
+  
+  # Collecting data with the selected variables and number of observations
+  seqnr <- seq(from=0, to=obs_collect, by=20) #How many searches must be made. Each page returns 20 obs
+  
+  for(i in seqnr) {
+    link <- paste0(full_url,"&$skip=",i) #Skip = antal obs already taken
+    data.temp <- GET(link)
+    data.temp.content <- content(data.temp)
+    values = data.temp.content$value #Take only the values-element of the content-list
+    
+    for(j in 1:length(values)) { #For every observation of the current page
+      df[i + j,] <- c(values[[j]][[parameter_vector[1]]], #Take this entire vector, with all the parameter values, and store it as the first obs in the data
+                      values[[j]][[parameter_vector[2]]],
+                      values[[j]][[parameter_vector[3]]],
+                      values[[j]][[parameter_vector[4]]],
+                      values[[j]][[parameter_vector[5]]],
+                      values[[j]][[parameter_vector[6]]],
+                      values[[j]][[parameter_vector[7]]],
+                      values[[j]][[parameter_vector[8]]],
+                      values[[j]][[parameter_vector[9]]],
+                      values[[j]][[parameter_vector[10]]],
+                      values[[j]][[parameter_vector[11]]],
+                      values[[j]][[parameter_vector[12]]],
+                      values[[j]][[parameter_vector[13]]],
+                      values[[j]][[parameter_vector[14]]],
+                      values[[j]][[parameter_vector[15]]])
+    }}
+  return(df)
+}
+```
+
+Now, I can use that function to get data on the parliament members
+```{r, eval=F}
+#I make a data frame with data from members (biografri contains the word "medlem" meaning "member")
+member_df<-collect_ft_data("http://oda.ft.dk/api/Akt%C3%B8r?$inlinecount=allpages",c("id", "navn", "typeid", "biografi"), filter_contain = c("biografi", "medlem"))
+
+#And a data frame with data from temporary members (biografri contains the word "Midlertidigt Folketingsmedlem", e.g. because the member substitutes a permanent member who is on paternity/maternity leave)
+temporary_member_df<-collect_ft_data("http://oda.ft.dk/api/Akt%C3%B8r?$inlinecount=allpages",c("id", "navn", "typeid", "biografi"), filter_contain = c("biografi", "Midlertidigt folketingsmedlem"))
+
+#I realise, that the temporary members have already been added to the member variable by the Danish parliament, so I dont include them
+
+#Make one dataset
+all_members_df<- member_df
+
+#Save the raw data
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+write.csv(all_members_df, "all_members_data_raw.csv")
+saveRDS(all_members_df,file="all_members_data_raw.Rda")
+```
+
+# STEP 2: Cleaning the data
+Import the data
+```{r}
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+all_members_df<-readRDS("all_members_data_raw.Rda")
+```
+
+##STEP 2.1: Rename the name variable
+```{r}
+#I rename the variable from Danish to english
+names(all_members_df)[names(all_members_df) == "navn"] <- "name"
+
+#How many duplicated duplicates?
+nrow(duplicated(all_members_df))
+```
+
+Now,I have a vector with all parliament member names - both former (in modern era) and current AND a dataset with temporary member data. Based on my debate I notice, that one name "Frank Aaen (udpeget af EL)" has a weird format, why I change it. I also notice, that some names are not similar accross debate resumé and api-data. There is not easy fix, and I will have to detect it, once it occurs. Fow now, I will correct it by hand: 
+
+```{r}
+all_members_df$name[all_members_df$name=="Frank Aaen (udpeget af EL)"]<-"Frank Aaen"
+all_members_df$name[all_members_df$name=="Simon Emil Ammitzbøll-Bille"]<-"Simon Emil Ammitzbøll"
+str(all_members_df)
+```
+
+## STEP 2.2: Extracting the party of the speaker
+I start by making a party variable in the member-data from the biografi-variable, using the fact that all bios contains the relevant party abbreviation in paranthesises. 
+```{r}
+#I make a vector for every party abbreviation
+party <- c("EL", "DF", "S", "LA", "RV", "V", "KF","ALT", "SF", #Danish Parties
+           "IA","T", "JF", "UFG", "SIU", "SP") #Greenlandic and Fairy Island Parties
+
+#A search pattern in the members bio's, as all party abbreviations are in (XX)
+party_pattern <- OPEN_PAREN %R% or1(party) %R% CLOSE_PAREN
+
+#The I can extract member party
+all_members_df$party<-stringr::str_extract(all_members_df$biografi, party_pattern)
+```
+
+## STEP 2.3: Extracting the education of the speaker
+Through same way I extracted party, I can now extract parliament member education. The latest education the member has achieved occurs first in the biograhy, why I ony have to run a str-extract (which takes occurence of a pattern)
+
+```{r}
+#I extract the education from the membership biographies
+all_members_df$education<-str_extract(all_members_df$biografi, "education>.{1,20},") #Take the first up to twenty characters after the "education>" end endning with a "," 
+all_members_df$education<-str_replace(all_members_df$education, "education>", "") #Remove the "education>"
+all_members_df$education<-str_replace(all_members_df$education, "\\<education>", "")#Remove the "<education>"
+all_members_df$education<-str_sub(all_members_df$education,1,-2L) #Remove the last comma
+```
+
+### Recode education
+To use education analytically, I recode the variable to contain information on whether the member has an academic education or not
+```{r}
+#144 unique values
+unique(all_members_df$education)
+
+#58 missing. No big worry - the education is not evident from the temporary members biography, why this is not so much of a problem
+sum(is.na(all_members_df$education))
+
+#If you have a university education in Denmark, your title is "cand.xxx.xxx". Further, some other university educations are evident
+
+##Setting up a university pattern
+university_pattern<-"Cand|h.d.|Antropolog|Statskundskab|Mag.|Dr.phil|Master"
+##Counting the amoung of academics
+sum(str_detect(all_members_df$education, pattern=university_pattern), na.rm=T)
+##Making an academic variable
+all_members_df$academic<-str_detect(all_members_df$education, pattern=university_pattern)
+```
+
+# Quickly visualizing the variables
+
+Education and party
+```{r}
+#Set up a fill variable
+all_members_df$education_fill<-1:nrow(all_members_df)
+all_members_df$education_fill[all_members_df$academic==T]<-"Academic Eduction"
+all_members_df$education_fill[all_members_df$academic==F]<-"No Academic Eduction"
+
+#Make the plot
+ggplot(subset(all_members_df, !is.na(academic) & !is.na(party)), aes(x=party, fill=education_fill))+
+  geom_bar()+
+  ylab("Number of parlament members") +
+  ylim(0,60)+
+  theme_minimal() +
+  labs(title="Danish MP's and their education?")+
+  theme(axis.text.y = element_text(size= 13),
+        axis.title.y = element_text(size= 13),
+        title=element_text(size=15),
+        axis.text.x=element_text(size=13),
+        axis.title.x=element_blank(),
+        legend.position = "top",
+        legend.title=element_blank(),
+        legend.text = element_text(size=13))+
+  scale_fill_ptol()
+```
+
+# Saving membership data
+```{r}
+#str(all_members_df)
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+saveRDS(all_members_df,file="all_members_data.Rda") #Save as R data
+write.csv(all_members_df, "all_members_data.csv")#Save as csv
+```

@@ -1,0 +1,406 @@
+---
+title: "03_Get_resume_data.Rmd"
+author: "Thorkil Klint"
+date: "18/3/2018"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Goals of this script
+This markdown file describes how to draw data from the Danish parliament website into a tidy R data set. I will use mainly web scraping, but also the Danish Parliament API to achieve this goal. I progress in two steps: 
+
+1. I will scrape all html content from one side containing a parliamnent debate resumé, and use the stringr-package to make it into a usefull dataframe
+2. I will derive a function, to scrape several resumé-URL's, allowing me to perform task #1 on many pages quickly
+
+I took the data-camp stringr-course, but that is all I know about regular expressions. If my code seem completely redundant, don't hesitate to tell me!
+
+## 1.1Bare neccessities
+I start by loading all the packages I will need
+```{r, message=F}
+#Remove all objects
+#rm(list = ls()) 
+
+library(rvest) # To scrape web data
+library(dplyr) #To manipulare data
+library(stringr) #To work with strings in a concise way
+library(httr) #To access anf get data from the twitter-api
+library(rebus) #An intuitive guide to regular expressions
+library(lubridate) #To work with dates and time date
+library(ggplot2) #To plot!
+```
+
+# 2. Making one resumé-web-page into a dataframe. 
+The goal of this section is to make a parliament debate resumé web page into a data frame, where each row consist of a statement made on the floor, and each collumn describes different characteristics across these statements. 
+
+I start out by reading in the entire web page as an HTML-file
+```{r}
+debat1 <- read_html("http://www.ft.dk/forhandlinger/20161/20161M062_2017-02-23_1000.htm")
+```
+
+I had the choice to either 1) read in more specific content from the html-page or 2) read the entire page in, and then sort out the useful parts.
+Unfortunately, the html-format of the parliament page is not intuitive - the text I will have to use have both the class "Tekst" and "Tekstindryk", depending on how it is portrayed on the site. Therefore, and as I find the text-formatting of the resumés pretty simple, I will mainly go with the latter way. 
+
+```{r}
+#Make the downloadet html-content into a text file
+text_debat1<-html_text(debat1) #Make the xml-object into a character string
+class(debat1)
+class(text_debat1)
+
+#result <- debat1 %>%
+  #html_nodes(css = "p") #Gives all text elements, which does not help.
+```
+
+Next step is to find a pattern that allows me to seperate the text-file into different statements yielded on the floor. Luckily, each statements follows this pattern  
+
+*Parliament Member Name OR Parliament member title (Party OR Name): Statement Statement Banana*  
+
+An example could be,  
+
+*Lotte Rud (RV): Thank you. I ...*  
+
+I exploid the fact, that the beginning of each statement is marked by a "):". As I am not yet a regular-expression-champ, I use to rebus-package to get an intuitive sense, of what my patterns are searching for: 
+```{r}
+#Set up a pattern
+statement_pattern <- "\\)" %R% "\\:" #Means as ) followed by a :
+
+#Pattern gives me 492 matches, and is equivalent of typing with regular expressions
+str_count(text_debat1, statement_pattern)
+str_count(text_debat1, "\\):")==str_count(text_debat1, statement_pattern)
+
+#I split the text element everytime "\\):." occurs, and save it as a list
+text_debat1_split1_list <- str_split(text_debat1, statement_pattern, n=Inf) 
+
+#I save the first element of the list (the actual text) as a character vector
+debat1_matrix<-cbind(unlist(text_debat1_split1_list[[1]])) 
+
+#I now have a long list of statements.
+debat1_matrix[2:4,]
+```
+
+The split I made above - although effective - resultet in a minor, non-intuitive feature. The name of speaker, title of speaker, and time for each statement is located at the end of the forgoing statement. I will therefore have to extract these features. My first intution was to split every time "Kl." occurs. "Kl." is a danish abbreviation for "Klokken", meaning O'Clock. This is because the resume gives the time just before each speaker takes the floor. Unfortunately, if a speaker has the floor a long time, the time is given inside the statement, yielding an ineffective split. 
+
+```{r}
+pattern_time_split <- "Kl" %R% "\\." #Set up a pattern
+naive_matrix<-str_split_fixed(debat1_matrix[,1], pattern=pattern_time_split, n=2) #Doing the naiive split
+naive_matrix[261,2] #This should have been a time followed by a name, but is time followed by statement
+```
+
+I therefore split at the *last* time "Kl." occurs in the string. As the stringr-package reads strings from left to right, I could not find any other way around this, than to reverse the entire string. Luckily, this was possible with the stringi-package (which the stringr-package is build on!)
+
+```{r}
+pattern_time_split_reverse <-  "\\." %R% "lK" #Set up a reversed pattern
+# Ireverse the strings, and split at the first occurence of ".lK"
+debat1_matrix_reverse <- stringr::str_split_fixed(stringi::stri_reverse(debat1_matrix[,1]), pattern=pattern_time_split_reverse, n=2) #n=2 secures that I only split the first time ".lK" occurs
+
+debat1_matrix_reverse[,1] <- stringi::stri_reverse(debat1_matrix_reverse[,1]) #reverse back
+debat1_matrix_reverse[,2] <- stringi::stri_reverse(debat1_matrix_reverse[,2])#reverse back
+debat1_df<- as.data.frame(debat1_matrix_reverse) #Make it into a data frame
+
+```
+
+Now, I have a data-frame where the first variable contains plenty of speaker information, and the other variable contains the statement. Although the data frame looks nice, it is misleading - my first split separated the speaker from the statement, resultning in a dataset where the real speaker name occurs in the row *before* the statement. I therefore move speaker name down one row. 
+
+```{r}
+debat1_df[2:nrow(debat1_df),1]<-debat1_df[1:nrow(debat1_df)-1,1]
+```
+
+Now I can start extracting all the information from the first variable, to put each type of information into a variable of its own. 
+
+### 2.1 Time of statement
+I start by making a time variable. I set up a pattern, following the fact that time is marked with XX:XX
+
+```{r}
+#I make a time pattern 
+time_pattern <- DGT %R% DGT %R% ":" %R% DGT %R% DGT
+
+#And then extract it
+debat1_df$time <- stringr::str_extract(debat1_df[,1], pattern=time_pattern)
+```
+
+### 2.2 Is the speaker the chairman
+
+```{r}
+debat1_df$chairman <- str_detect(debat1_df$V1, "Formand|formand") #Codes yes if formand [danish for chair] occurs
+```
+
+### 2.3 Speaker name
+To extract speaker name, I could have fooled around with a lot of different regular expressions, trying to sort out the name (frankly, I did). Unfortunately, the names are formatted quite differently - som are in parenthesis, som are not - all depending on whether the speaker is a chair, minister, speaker or leading speaker when the statement was given. This is interesting, and would be nice to derive in future work, but for now, I just want their name. To overcome this challenge, I will rely on the stringr str_extract function, that returns all the elements of a string that match a pattern. So all I need is a pattern of all the parliament member names. I could type it in by hand, but luckily, the Danish Parliament API is helpsome.Therefore, I have set up the "Get_resume_data.Rmd"-file, to produce a dataset with parliament member name, parliament member party and parliament member education 
+
+```{r}
+#Load the member data
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+all_members_df<-readRDS("all_members_data.Rda")
+str(all_members_df)
+```
+
+Now, I can set up an rebus or-function, named after the vector with all member names. The function or1() is a quick way of seperating all the vectors elements in the name variable with a | in a regular expression. 
+```{r}
+## Set up a pattern to detect member names in resume data
+member_pattern <- rebus::or1(all_members_df$name)
+
+#Make the variable with speaker name
+debat1_df$name <- stringr::str_extract(debat1_df$V1, pattern=member_pattern) 
+```
+
+### 2.4 Speaker party
+Now that I know the name of each speaker, I can merge the debate-dataset with data from the api, to get the final data set for this debate!, containing both the four variables created from the resume data (statement, time, speaker_name and chairman) and the variables that was created in the Get_member_data.Rmd - script!
+
+```{r}
+#I make a shorter version of member data withoutunimportant variables
+member_df_merge <- dplyr::select(all_members_df, -biografi, -typeid, -education) 
+#I merge the data
+debat1_df<- dplyr::left_join(debat1_df, member_df_merge, by = "name")
+```
+
+Finally, I can give the data intuitive variable names and save it
+```{r}
+#I remove the first four lines, as these are meta-comments before the debate starts
+debat1_df<- debat1_df[5:nrow(debat1_df),]
+
+#I remove the variable V1, that was used to get the meta info
+debat1_df<- dplyr::select(debat1_df, -V1)
+
+#I rename the variable V2 to "statement"
+names(debat1_df)[names(debat1_df) == "V2"] <- "statement"
+#And then i make it into a character
+class(debat1_df$statement)
+debat1_df$statement <- as.character(debat1_df$statement)
+class(debat1_df$statement)
+
+#And now, I save the data
+#setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data")
+#getwd()
+#write.csv(debat1_df, "debate1_final_project.csv")
+#str(debat1_df)
+```
+
+And to get a sense of the data, I can make a plot
+This plot shows, that since the minister is from LA and the chair is from EL, they make by far the most statements
+```{r}
+ggplot(debat1_df, aes(x=party))+
+  geom_bar()+
+  theme_minimal()+
+  labs(title="Which party takes the floor the most times")+
+    ylab("Number of statements") +
+    xlab("Party in Danish Parliament")
+```
+
+```{r}
+ggplot(debat1_df, aes(x=name))+
+  geom_bar()+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 50, hjust = 1))+
+  labs(title="Which speaker takes the floor the most times")+
+    ylab("Number of statements") +
+    xlab("Speaker in Danish Parliament")
+```
+
+# 3. Scraping over several url's
+In this section I will apply the work from above in a loop that scrapes several debates at once
+
+# 3.1 Get a vector of URL's to scrape over
+The first step in order to scrape more than one URL is to get a vector with several URL's for different relevant parliament debates. This can be done by scraping all the URL's from the following web-site that contains on overview of different parliament debate resumés
+
+http://www.ft.dk/da/dokumenter/dokumentlister/referater?pageSize=200&startDate=20161201
+
+Here, I have manually set start date and page size, to allow for as many debates as possible. For my final project, I will write a function that creates the URL for getting the debate-urls based on e.g. when the debates were held
+
+I start by reading the entire overview page
+
+```{r}
+ #Read the entire page
+overview <- read_html("http://www.ft.dk/da/dokumenter/dokumentlister/referater?pageSize=200&startDate=20161201")
+```
+
+### 3.1.1 Write a function that creates the overview-URL based on its content
+To retype and update this URL by hand later will be a mess, so I make a quick function for updating the URL
+```{r}
+create_resume_url <- function(n=NULL, start=NULL, end=NULL){
+  #This function takes three arguments, 
+    # n= number of resume urls pr page
+    # start = start date, in the format YYYYMMDD
+    # end = end date, in the format YYYYMMDD
+  
+  #If n is specified, set up a variable called page size, consisting of relevant url-code
+  if (length(n)>0){
+    n <- paste0("pageSize=",n, "&")
+  }
+ 
+  #If start is specified, set up a variable called start date, consisting of relevant url-code
+  if (length(start)>0){
+    start <- paste0("startDate=",start, "&")
+  } 
+   
+  #If end is specified, set up a variable called end date, consisting of relevant url-code
+  if (length(end)>0){
+    end <- paste0("endDate=",end, "&")
+  }
+  
+  #Paste all the variable together
+  url <- paste0("http://www.ft.dk/da/dokumenter/dokumentlister/referater?", n, start, end)
+  
+  #The url may not end with a "&" - i therefore delete the last letter if it does, and print the URL
+  if (stringr::str_sub(url, start=-1L)=="&"){
+    url <- stringr::str_sub(url, start=1L, end=-2L)
+    print(url)
+  } else {
+    print(url)
+  }
+}
+```
+
+### 3.1.2 Scrape the URL's from the overview-page
+In order to scrape all the URL's from the webpage, I check out the HTML-structure, and decide what objects to draw. The selecter tool helps me to realize, that I need the objects with class=highlighted, type = a to get all the urls and the date for each debate
+```{r}
+#Make a result list from the css-code
+results <- overview %>%
+  html_nodes(css = ".highlighted a")
+```
+
+Now, I can take this list, and make it into a dataframe with all the URL's
+```{r}
+#I then remove the first element of the list, as this is meta-data
+results <- results[-1]
+
+# I create empty placeholder for the urls
+debates <- vector("list", length = length(results))
+
+# I set up a function to save document names and urls
+for (i in 1:length(results)) { #for every element in the list results
+    date <- lubridate::dmy_hm(str_sub(html_text(results[i]),27,42)) 
+    #Take from 27th till 42nd element of str, which is the date, and make a data-character variable. Then make it into POSIXct format
+    url <- html_attr(results[i], "href") #takes the url (using the href)
+    debates[[i]] <- data_frame(date = date, url = url) # convert the two variables into a df, and store them in a list
+    df_debates <- bind_rows(debates) #Convert the list into a data frame
+}
+
+# Finally, I can create full host webpage urls in the dataset
+df_debates$url <- paste0("http://ft.dk", df_debates$url, sep="")
+```
+
+And now, I have a beutiful data frame with all the scraped URL's
+```{r}
+str(df_debates)
+```
+
+I save the data, as the format of the website might change in a not so distant future
+```{r}
+#And now, I save the data
+getwd()
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+write.csv(df_debates, "url_resume_df.csv")
+saveRDS(df_debates,file="url_resume_df.Rda")
+```
+
+## 3.2 Scraping all the html-files
+Now, I will perform the first exercise (making a data frame of statements) across many debates. 
+
+```{r}
+#Load data
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+df_debates<-readRDS(file="url_resume_df.Rda")
+```
+
+### 3.2.1 The relevant URL's
+With help from the agenda-dataset, I can limit the debate-urls to the relevant debates (where the minister of immigration occurs more than 2 times on the agenda)
+```{r}
+#Load the agenda data
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+url_agenda_data<-readRDS("url_agenda_df.Rda")
+
+#Make a df with only the urls for the agendas of the relevant debates
+relevant_agenda_data<-url_agenda_data[url_agenda_data$mentions>2,]
+
+#I rename the variable url to agenda-url
+names(relevant_agenda_data)[names(relevant_agenda_data) == "url"] <- "agenda_url"
+
+#Load the debate data
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+df_resumes_merge<-readRDS("url_resume_df.Rda")
+
+#I rename the variable url to resume-url
+names(df_resumes_merge)[names(df_resumes_merge) == "url"] <- "resume_url"
+
+#And limit the time from the date, so the format is the same as url_agenda data
+df_resumes_merge$date<-as.Date(df_resumes_merge$date, format="d%m%y%")
+
+##Merge
+relevant_debates_df<- dplyr::left_join(relevant_agenda_data, df_resumes_merge, by = "date")
+
+#Save the data
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+saveRDS(relevant_debates_df,file="resume_urls_to_loop_over.Rda")
+write.csv(relevant_debates_df, "resume_urls_to_loop_over.csv")
+```
+
+### 3.2.2 Running the forloop
+And then, I run the forloop (Now, with a try catch)
+```{r, eval=FALSE}
+#Load the data
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+relevant_debates_df<-readRDS("resume_urls_to_loop_over.Rda")
+
+#Make a list the length of the objects
+resumes <- vector("list", length = nrow(relevant_debates_df))
+
+#Set up patterns
+time_pattern <- DGT %R% DGT %R% ":" %R% DGT %R% DGT #Time is always in pattern such as 13:05
+statement_pattern <- "\\)" %R% "\\:" #Means as ) followed by a :
+time_split_reverse_pattern <-  "\\." %R% "lK" #Set up a reversed pattern
+start_with_time_pattern <- START %R% SPACE %R% DGT %R% DGT %R% ":" %R% DGT %R% DGT
+member_pattern <- rebus::or1(all_members_df$name) #Take the member data, and make the member-or pattern
+
+#And run the forloop with try catch
+for (i in 1:nrow(relevant_debates_df)){
+  resumes[[i]] <- tryCatch(expr={html_text(read_html(relevant_debates_df$resume_url[i]))},
+                             error=function(e){return("No dataframe due to error")}) #Read in the files as text
+  
+  if(resumes[[i]]=="No dataframe due to error"){
+    print(paste0("An error occured in url number ",i))
+  }else{
+  
+  #Perform the first split split
+  first_split_count <- str_count(resumes[[i]], statement_pattern) #Print if it worked
+  print(paste0("Statement pattern occured ", first_split_count, " times in debate", i))
+  resumes[[i]] <- str_split(resumes[[i]], statement_pattern, n=Inf) 
+  resumes[[i]]<-cbind(unlist(resumes[[i]][[1]])) 
+  
+  #Second split, #n=2 secures split only the first time ".lK" occurs
+  resumes[[i]] <- stringr::str_split_fixed(stringi::stri_reverse(resumes[[i]][,1]),
+                                           pattern=time_split_reverse_pattern, n=2) 
+  resumes[[i]][,1] <- stringi::stri_reverse(resumes[[i]][,1]) #reverse back
+  resumes[[i]][,2] <- stringi::stri_reverse(resumes[[i]][,2])#reverse back
+  resumes[[i]]<- as.data.frame(resumes[[i]]) #Make it into a data frame
+  
+  #Remove the meta rows in df (does not start with a time)
+  resumes[[i]]<-resumes[[i]][str_detect(resumes[[i]][,1], start_with_time_pattern),]
+
+  #Extract the time and create a variable
+  resumes[[i]]$time <- stringr::str_extract(resumes[[i]][,1], pattern=time_pattern)
+  
+  #Make the variable with speaker name
+  resumes[[i]]$name <- stringr::str_extract(resumes[[i]]$V1, pattern=member_pattern) 
+  #Move speaker one down, as the split seperated them
+  resumes[[i]]$name[2:nrow(resumes[[i]])]<-resumes[[i]]$name[1:nrow(resumes[[i]])-1]
+  
+  Sys.sleep(5) #So I dont take down the government
+  }
+}
+
+str(resumes[[1]])
+```
+Save the data
+```{r, eval=FALSE}
+#Save the respective data sets
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+getwd()
+for (i in 1:length(resumes)){
+  saveRDS(resumes[[i]],file=paste0("resume_debate_",i,".Rda"))
+}
+
+for (i in 1:length(resumes)){
+  write.csv(resumes[[i]],file=paste0("resume_debate_",i,".csv"))
+}
+```

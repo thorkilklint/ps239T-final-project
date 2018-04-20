@@ -1,0 +1,197 @@
+---
+title: "Get agenda data into an r-csv-file"
+author: "Thorkil"
+date: "25/3/2018"
+output: html_document
+---
+## Set up necessities
+```{r setup, message=F}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Remove all objects
+rm(list = ls()) 
+getwd()
+
+library(rvest) # To scrape web data
+library(stringr) #To work with strings in a concise way
+library(httr) #To access anf get data from the twitter-api
+library(dplyr) #To wrangle data
+library(lubridate) #To work with dates and time date
+library(ggplot2) #To plot
+library(ggrepel) #To plot text, taking overlapping into account
+```
+
+#1. Goals of this script
+This script does two things, allowing me to choose the relevant parliament debates to investigate
+
+1. I scrape a list of urls for parliament session agendas
+2. I scrape these agendas, and count the number of times the minister of integration is in session
+
+#2. Create a vector of agenda URL's
+I start by making a vector of all the URLs to scrape over. Every agenda html is build in the following format  
+
+http://www.ft.dk/samling/20171/salen/1/index.htm   
+
+where "1" indicates the first meeting of the 2017-parliament session. I therefore make a vector, containing an URL for all of the meetings in the 2017 session:
+```{r}
+#There have currently been 74 meetings this session
+url_agenda_vector<- paste0("http://www.ft.dk/samling/20171/salen/", 1:76, "/index.htm")
+```
+
+I then put the vector into a matrix to loop over. I format it as a matrix, as this will be faster to loop over
+```{r}
+#I set up subsample of the vector for testing purposes
+url_agenda_vector_test <- url_agenda_vector[72:74]
+
+#Make both the real and the testing vector into a matrix to loop over and add a new collumn
+url_agenda_matrix_test <- matrix(url_agenda_vector_test, ncol=1, byrow=TRUE)
+url_agenda_matrix <- matrix(url_agenda_vector, ncol=1, byrow=TRUE)
+
+#And then, I add two collums to the matrix, that can be replaced in the loop
+#For the test
+url_agenda_matrix_test <- cbind(url_agenda_matrix_test,
+                                1:nrow(url_agenda_matrix_test),
+                                1:nrow(url_agenda_matrix_test))
+#For the actual scraping
+url_agenda_matrix <- cbind(url_agenda_matrix,
+                           1:nrow(url_agenda_matrix),
+                           1:nrow(url_agenda_matrix))
+```
+
+#3. Get an overview of relevant debates
+
+I start by going through each of the steps necessary for me to derive the required agenda information. For each agenda-url I need to
+
+1. download the entire agenda-page as a html-page
+```{r}
+#Get the entire agenda
+agenda_19 <- read_html("http://www.ft.dk/samling/20171/salen/19/index.htm")
+```
+
+2.derive the relevant html-content (the points on the agenda) and convert it into a text format. The css-code for deriving the relevant information was created via the SelectorGadget:
+```{r}
+#Get the points on the agenda
+text_agenda_19 <- agenda_19 %>%
+  html_nodes(css = "#globalcontent_0_pagelayoutbcontent_2_tingdokcontent2_0_accordionConfigurableSpot span")
+
+#Get the meta-info (the header) of the agenda
+date_agenda_19 <- agenda_19 %>%
+  html_nodes(css = ".dayplanmetadata h1")
+``` 
+
+3. finally, I need to count the number of agenda items the minister of immigration occurs in for the specific meeting, and derive the date from the agenda header
+```{r}
+#Number of agenda items where the minister of immigration minister occurs
+sum(str_detect(text_agenda_19, "dlændinge- og integrationsminister"))
+
+#Get the date of the meeting
+date_pattern<-"[:digit:]{1,2}\\.[:blank:][:lower:]+[:blank:][:digit:]{4}" #1 or 2 digits followed by dot followed by space, then one or more lowercase letters, then a space, and then exactly four digits
+str_extract(date_agenda_19, pattern=date_pattern)
+```
+
+Now, I can set all these steps up in a function that creates a matrix with the number of the meeting, 
+```{r, eval=FALSE}
+#set up a list, where I store the websites
+agendas <- vector("list", length = 76)
+nrow(url_agenda_matrix)
+
+#Make it into a function
+for (i in 1:nrow(url_agenda_matrix)) {
+  
+  #Try catch the agenda html with a read html
+  agendas[[i]]<- tryCatch(expr={read_html(url_agenda_matrix[i,1])},
+                          error=function(e){return("No url due to error in web request")})
+  
+  ##Count the number of times "Udlændinge og integrationsminister" occurs
+  if(agendas[[i]][1]=="No url due to error in web request"){
+    print(paste0("An error occured in url number ",i))
+  }else{
+  url_agenda_matrix[i,2]<-sum(str_detect(html_nodes(agendas[[i]],
+                              css = "#globalcontent_0_pagelayoutbcontent_2_tingdokcontent2_0_accordionConfigurableSpot span"), "dlændinge- og integrationsminister")) #The search term "dlændinge- og integrationsminister" captures both §20 and law proposals
+    
+    ###Extract the date of the agenda
+    url_agenda_matrix[i,3]<-str_extract(html_nodes(agendas[[i]],
+                              css = ".dayplanmetadata h1"), pattern=date_pattern)
+    Sys.sleep(3) #So I dont take down the government
+  }
+}
+```
+
+And now, I can make it into a data frame as the number of times a word occurs is currently a chr
+```{r, eval=FALSE}
+url_agenda_df <- as.data.frame(url_agenda_matrix, row.names = NULL)
+#Rename
+names(url_agenda_df) <- c("url", "mentions", "date")
+#Make "mentions" into numeric
+url_agenda_df$mentions<- as.numeric(url_agenda_df$mentions)-1
+
+#Convert the date
+##Convert Danish months to numeric
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. januar ", "\\-1-")
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. februar ", "\\-2-")
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. marts ", "\\-3-")
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. april ", "\\-4-")
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. maj ", "\\-5-")
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. juni ", "\\-6-")
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. juli ", "\\-7-")
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. august ", "\\-8-")
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. september ", "\\-9-")
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. oktober ", "\\-10-")
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. november ", "\\-11-")
+url_agenda_df$date <- str_replace(url_agenda_df$date, "\\. december ", "\\-12-")
+
+##Then convert the date
+url_agenda_df$date<-dmy(url_agenda_df$date)
+
+#Then save it as a csv
+#getwd()
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+write.csv(url_agenda_df, "url_agenda_df.csv")
+saveRDS(url_agenda_df,file="url_agenda_df.Rda")
+```
+
+#Now, I can just quickly plot my data, to get a sense of it
+```{r, message=F}
+#I import the data
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+url_agenda_df_plot<-readRDS("url_agenda_df.Rda")
+
+#I make a label variable with the date of the meeting
+url_agenda_df_plot$label<-url_agenda_df_plot$date
+url_agenda_df_plot$label[url_agenda_df_plot$mentions<3]<-NA
+url_agenda_df_plot$label<-format(url_agenda_df_plot$label, format="%b %d")
+
+#Now I can make a plot of when the Minister of immigration is on the agenda
+ggplot(url_agenda_df_plot, aes(x=date, y=mentions, label=label))+
+  geom_col(col="gray83")+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 35, hjust = 1))+
+  labs(title="How many times does the minister of immigration occur on agenda (2017-18)")+
+    ylab("Number of mentions") +
+    xlab("")+
+    scale_x_date(date_labels = "%d %b %y", date_breaks = "month")+
+  geom_text_repel(size = 3)+
+  geom_rug()
+```
+
+```{r, eval=F}
+#For the presentation
+ggplot(url_agenda_df_plot, aes(x=date, y=mentions, label=label))+
+  geom_col(col="gray83")+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 35, hjust = 1, size=13),
+        axis.text.y = element_text(size=13),
+        title=element_text(size=18),
+        axis.title.x=element_text(size=13))+
+  labs(title="How many times does the Minister of Immigration\noccur on agenda (2017-18)")+
+    ylab("Number of mentions") +
+    xlab("")+
+    scale_x_date(date_labels = "%d %b %y", date_breaks = "month")+
+  geom_text_repel(size = 4)+
+  geom_rug()
+```
+
+## The chosen debates 11 (where the minister of immigration is mentioned more than three times)
+```{r}
+print(url_agenda_df_plot$date[url_agenda_df_plot$mentions>2])
+```

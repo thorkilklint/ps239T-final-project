@@ -1,0 +1,320 @@
+---
+title: "Scraping homework"
+author: "Thorkil"
+date: "18/3/2018"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Goals of this script
+This markdown file describes cleans the text-data that I scraped from the parliament websites. It also sorts out the relevant statements to look at. 
+
+## 1.1 Bare neccessities
+I start by loading all the packages I will need
+```{r, message=F}
+#Remove all objects
+#rm(list = ls()) 
+
+library(rvest) # To scrape web data
+library(dplyr) #To manipulare data
+library(stringr) #To work with strings in a concise way
+library(httr) #To access anf get data from the twitter-api
+library(rebus) #An intuitive guide to regular expressions
+library(lubridate) #To work with dates and time date
+library(ggplot2) #To plot!
+```
+
+# 2.Adding additional variables
+I start by loading the data
+```{r}
+#Load the respective data sets
+getwd()
+
+#Make a list to contain the data
+resumes_load <- vector("list", length = 11)
+
+#Load the data into the list
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+for (i in 1:length(resumes_load)){
+  resumes_load[[i]]<-readRDS(paste0("resume_debate_",i,".Rda"))
+}
+```
+
+## 2.1 Is the speaker chairman of the session?
+
+I make a new variable, indicating wether the speaker is the chair of the session
+```{r}
+for (i in 1:length(resumes_load)){
+  resumes_load[[i]]$chairman <- str_detect(resumes_load[[i]]$V1, "Formand|formand")
+  #Move speaker one down, as the split seperated them
+  resumes_load[[i]]$chairman[2:nrow(resumes_load[[i]])]<-resumes_load[[i]]$chairman[1:nrow(resumes_load[[i]])-1]
+}
+```
+
+## 2.2 Education and party of the speaker
+I load the member data
+```{r}
+#Load the member data
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+all_members_df<-readRDS("all_members_data.Rda")
+
+#I make a shorter version of member data withoutunimportant variables
+member_df_merge <- dplyr::select(all_members_df, -biografi, -typeid, -education) 
+```
+
+And then I can merge the member data with the resume data to get speaker party and education
+```{r}
+#I merge the datasets with the member information
+for (i in 1:length(resumes_load)){
+  resumes_load[[i]]<-dplyr::left_join(resumes_load[[i]], member_df_merge, by = "name")
+}
+```
+
+## 2.3 Make variables into correct format
+My data work has made some of the variables into incorrect formats
+```{r}
+str(resumes_load[[1]])
+```
+V2, the text variable, is currently a factor, which is incorrect. I make it into a character, and rename it to "text"
+```{r}
+for (i in 1:length(resumes_load)){
+  resumes_load[[i]]$text<-as.character(resumes_load[[i]]$V2)
+}
+#Then, I can check out the structure
+str(resumes_load[[1]]) 
+```
+
+And then, I can remove V1 and V2 from the dataset
+```{r}
+for (i in 1:length(resumes_load)){
+  resumes_load[[i]]<-dplyr::select(resumes_load[[i]], -V1, -V2)
+}
+#Then, I can check out the structure
+str(resumes_load[[1]]) 
+```
+
+# 3. Finding statements relevant to migration debate
+Although a lot of the debates that I have drawn are about immigration, they are not all about immigration. I therefore have to solve two things before I save my data
+
+1. I have to find the statements that are actually made during an immigration debate
+2. I have to sort out the chairmans comments, as these are more of meta statements, and therefore not relevant in regards to my project.
+
+The reason I am doing this in this order, is to allow me to use the chairman commens as splits
+
+## 3.1. Finding the relevant statements
+I have to get an overview of the sequence of the statements, as not all of the debates are about immigration  
+
+I draw the agenda point for each statement in the debate
+```{r}
+#For agenda item logical
+next_agenda_item_pattern <- "første punkt på dagsordenen er:|næste punkt på dagsordenen er:"
+
+#Set a pattern for bill propositions
+## In resumes with new line
+proposition_pattern_new_line <- "[:space:]" %R% "[:digit:]{1,2}" %R% "\\)" %R% "[:space:][:digit:]" %R% ".*"
+## In resumes with no line
+proposition_pattern_no_line <- "[:digit:]{1,2}" %R% "\\)" %R% "[:space:][:digit:]" %R% ".*" %R% "[:digit:]" %R% "\\:"
+## Together
+proposition_pattern<-rebus::or(proposition_pattern_new_line,proposition_pattern_no_line)
+
+#Set a pattern for content of bill propositions
+## In resumes with new line
+content_pattern_new_line <- "[:space:]" %R% "Forslag til .*"
+## In resumes with no line
+content_pattern_no_line <- "Forslag til .*" %R% "\\).Af"
+## Together
+content_pattern<-rebus::or(content_pattern_new_line,content_pattern_no_line)
+
+## Get the bill proposition agenda points from a loop, and make a variable called agenda item
+for (i in 1:length(resumes_load)){
+  propositions<-str_extract(resumes_load[[i]]$text,pattern=proposition_pattern)
+  content<-str_extract(resumes_load[[i]]$text,pattern=content_pattern)
+  prop_content<-paste0(propositions,content)
+  resumes_load[[i]]$agenda_item<-prop_content
+}
+
+#For agenda question
+##For the first agenda question
+first_agenda_question_pattern<-"første spørgsmål" %R% ".*" %R% "\\."
+
+##For the second agenda question
+next_agenda_question_pattern<-"næste spørgsmål" %R% ".*" %R% "\\."
+
+## Together
+question_pattern<-rebus::or(first_agenda_question_pattern,next_agenda_question_pattern)
+
+#Make a variable for agenda question
+for (i in 1:length(resumes_load)){
+  resumes_load[[i]]$agenda_question<-str_extract(resumes_load[[i]]$text,pattern=question_pattern)
+}
+
+#Put the two agenda variables together
+for (i in 1:length(resumes_load)){
+  ## Make a new variable two merge with, out of the agenda questions
+  resumes_load[[i]]$agenda<-resumes_load[[i]]$agenda_question
+  ##Ad the agenda questions, where there is an agenda question
+  resumes_load[[i]]$agenda[resumes_load[[i]]$agenda_item!="NANA"]<-resumes_load[[i]]$agenda_item[resumes_load[[i]]$agenda_item!="NANA"]
+  resumes_load[[i]]<-select(resumes_load[[i]], -agenda_item, -agenda_question)
+}
+```
+
+Now, I have an agenda variable, showing when the agenda item switches, and what it switches to.I can use this, to get an overview of the debate
+```{r}
+#I make an indicator variable
+for (i in 1:length(resumes_load)){
+  resumes_load[[i]]$statement_number<-1:nrow(resumes_load[[i]])
+}
+```
+
+### 3.1.1 Picking the statements from Debate 1
+```{r, eval=F}
+View(resumes_load[[1]] %>%
+  select(statement_number, agenda) %>%
+  filter(!is.na(agenda)))
+```
+Here, I need row 220 to nrow(resumes_load[[1]])
+```{r}
+resumes_load[[1]]<-filter(resumes_load[[1]], statement_number>219)
+```
+
+### 3.1.2 Picking the statements from Debate 2
+```{r, eval=F}
+View(resumes_load[[2]] %>%
+  select(statement_number, agenda) %>%
+  filter(!is.na(agenda)))
+```
+Here, I need row 106 to nrow(resumes_load[[2]])
+```{r}
+resumes_load[[2]]<-filter(resumes_load[[2]], statement_number>105)
+```
+
+### 3.1.3 Picking the statements from Debate 3
+```{r, eval=F}
+View(resumes_load[[3]] %>%
+  select(statement_number, agenda) %>%
+  filter(!is.na(agenda)))
+```
+Here, I need row 189 to nrow(resumes_load[[3]])
+```{r}
+resumes_load[[3]]<-filter(resumes_load[[3]], statement_number>188)
+```
+
+### 3.1.4 Picking the statements from Debate 4
+```{r, eval=F}
+View(resumes_load[[4]] %>%
+  select(statement_number, agenda) %>%
+  filter(!is.na(agenda)))
+```
+Here, I need row 206 to 277
+```{r}
+resumes_load[[4]]<-filter(resumes_load[[4]], statement_number>205 & statement_number<278)
+```
+
+### 3.1.5 Picking the statements from Debate 5
+```{r, eval=F}
+View(resumes_load[[5]] %>%
+  select(statement_number, agenda) %>%
+  filter(!is.na(agenda)))
+```
+Here, I dont need anything
+
+### 3.1.6 Picking the statements from Debate 6
+```{r, eval=F}
+View(resumes_load[[6]] %>%
+  select(statement_number, agenda) %>%
+  filter(!is.na(agenda)))
+```
+Here, I dont need anything
+
+### 3.1.7 Picking the statements from Debate 7
+```{r, eval=F}
+View(resumes_load[[7]] %>%
+  select(statement_number, agenda) %>%
+  filter(!is.na(agenda)))
+```
+Here, I need 36-198
+```{r}
+resumes_load[[7]]<-filter(resumes_load[[7]], statement_number>35 & statement_number<199)
+```
+
+### 3.1.8 Picking the statements from Debate 8
+```{r, eval=F}
+View(resumes_load[[8]] %>%
+  select(statement_number, agenda) %>%
+  filter(!is.na(agenda)))
+```
+Here, I need 100-160
+```{r}
+resumes_load[[8]]<-filter(resumes_load[[8]], statement_number>99 & statement_number<161)
+```
+
+### 3.1.9 Picking the statements from Debate 9
+```{r, eval=F}
+View(resumes_load[[9]] %>%
+  select(statement_number, agenda) %>%
+  filter(!is.na(agenda)))
+```
+Here, I need 83-143 and 314-nrow(resumes_load[[9]])
+```{r}
+resumes_load[[9]]<-filter(resumes_load[[9]], statement_number>82 & statement_number<144 | statement_number>313)
+```
+
+### 3.1.10 Picking the statements from Debate 10
+```{r, eval=F}
+View(resumes_load[[10]] %>%
+  select(statement_number, agenda) %>%
+  filter(!is.na(agenda)))
+```
+Here, I need 71-122 and 191-nrow(resumes_load[[10]])
+```{r}
+resumes_load[[10]]<-filter(resumes_load[[10]], statement_number>70 & statement_number<123 | statement_number>190)
+```
+
+### 3.1.11 Picking the statements from Debate 11
+```{r, eval=F}
+View(resumes_load[[11]] %>%
+  select(statement_number, agenda) %>%
+  filter(!is.na(agenda)))
+```
+Here, I need 106-nrow(resumes_load[[11]])
+```{r}
+resumes_load[[11]]<-filter(resumes_load[[11]], statement_number>105)
+```
+
+## 3.2 Making one data frame
+Now, I can collect all the statements into one data frame
+```{r}
+immigration_debate_text_data <- bind_rows(resumes_load[[1]],
+                                          resumes_load[[2]],
+                                          resumes_load[[3]],
+                                          resumes_load[[4]],
+                                          resumes_load[[7]],
+                                          resumes_load[[8]],
+                                          resumes_load[[9]],
+                                          resumes_load[[10]],
+                                          resumes_load[[11]])
+```
+The time variable is currently a character, why I change it with the lubridate package
+```{r}
+immigration_debate_text_data$time<-hm(immigration_debate_text_data$time)
+#Then, I can check out the structure
+str(immigration_debate_text_data) 
+```
+
+# 4. Removing the chairman comments
+Now, all that I have to do, is to remove the chairman comments. Further, I remove the comment "Værsgo", which just yields the floor.  
+```{r}
+immigration_debate_text_data<-filter(immigration_debate_text_data, chairman==F) #Remove chairman comments
+immigration_debate_text_data<-filter(immigration_debate_text_data, !str_detect(immigration_debate_text_data$text, pattern="Værsgo.")) #Remove "Værsgo."
+```
+
+# 5. Save the data
+And now, I can save these data frames as one big R data frame!
+```{r}
+getwd()
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data")
+saveRDS(immigration_debate_text_data,file="immigration_debate_text_data.Rda")
+write.csv(immigration_debate_text_data,file="immigration_debate_text_data.csv")
+```
