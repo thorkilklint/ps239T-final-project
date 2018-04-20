@@ -2503,9 +2503,7 @@ library(data.table)</code></pre>
 <pre class="r"><code>library(RColorBrewer) # for color palettes
 library(matrixStats) # for statistics</code></pre>
 <pre><code>## Warning: package 'matrixStats' was built under R version 3.4.3</code></pre>
-<pre class="r"><code>library(ggplot2) #For plotting
-
-setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data&quot;)</code></pre>
+<pre class="r"><code>library(ggplot2) #For plotting</code></pre>
 </section>
 </section>
 <section id="step-1-pre-process-and-clean-the-text" class="level1">
@@ -2513,8 +2511,9 @@ setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Pr
 <p>I start by opening my statement dataset</p>
 <pre class="r"><code>#Open the data
 getwd()</code></pre>
-<pre><code>## [1] &quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts&quot;</code></pre>
-<pre class="r"><code>immigration_debate_text_data&lt;-readRDS(&quot;get_data/immigration_debate_text_data.Rda&quot;)</code></pre>
+<pre><code>## [1] &quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Code&quot;</code></pre>
+<pre class="r"><code>setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
+immigration_debate_text_data&lt;-readRDS(&quot;immigration_debate_text_data.Rda&quot;)</code></pre>
 <p>When using the tm-package to structure text data in the corpus format, the importet data-set has to have the following collumns in order: 1. doc_id - a unique string for each document 2. text - the text to be examined … - any other columns will be automatically cataloagued as meta-data.</p>
 <p>I set up the doc_id variable. I give this variable intuitive names based on the party of the speaker, as this allows me to split the dataset into different parties / political blocs later on</p>
 <pre class="r"><code>#A doc ID variable with party name and number of statement, so that I can sort
@@ -2588,7 +2587,6 @@ meta(text_corpus[1])$name</code></pre>
 <h2>STEP 1.2 Cleaning the text</h2>
 <p>I use the TM-package to set up a function for cleaning up the text. This function uses five kinds of stopwords: - Regular stopworts from the Stopwords tm function in Danish - Extra stopwords to be used before the stemming (like “tak”, which is used a lot due to formalities in parliament) - Extra stopwords to be used after stemming (like “minist”, short for minister), which is said a lot in parliamentary debates, but does not affect the way you address immigration - Party stopwords, formalized as the names of the parties, which are used a lot (Dansk folkeparti means…) - Member stopwords, a vector with all member first and last names - these are used a lot due to formalities as well, but are not interesting</p>
 <pre class="r"><code>#I set up a vector of extra stopword
-
 #Stowords before stemming
 extra_stopwords_pre_stem&lt;-c(&quot;formand&quot;,&quot;formanden&quot;, &quot;kan&quot;, &quot;ved&quot;, &quot;spørgsmål&quot;, &quot;folkeparti&quot;, &quot;tak&quot;, &quot;derfor&quot;)
 #Stopwords after stemming
@@ -2605,7 +2603,7 @@ party_stopwords&lt;-c(&quot;Dansk Folkeparti&quot;, &quot;Dansk Folkepartis&quot
                    &quot;Socialistisk Folkeparti&quot;, &quot;Socialistisk Folkepartis&quot;)
 
 ##Member names stopword
-setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data&quot;)
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
 all_members_df&lt;-readRDS(&quot;all_members_data.Rda&quot;)
 member_first_last_name&lt;-unlist(strsplit(all_members_df$name, &quot; &quot;))
 

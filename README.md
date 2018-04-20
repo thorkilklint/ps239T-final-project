@@ -1,20 +1,18 @@
 ## Short Description
 
-Give a short, 1-2 paragraph description of your project. Focus on the code, not the theoretical / substantive / academic side of things. 
+The code in this project follows four steps, in order to analyse wether the way Danish Parliament members address the issue of immigration differs across different member parties, with the opportunity to answer the same question for other member traits. *First*, I have written an R-script that scrapes the agendas for different parliament settings, counting the number of times the Minister of Immigration occurs on the agenda, thereby enabling me to pick relevant debates. *Second*, I use the Danish Parliament API to get data on the party and education of each parliament member. *Third* I scrape the transcripts, what I call the resumes, of relevant party debates, and *finally* I apply discriminative, unsupervised text analysis to answer my research question. 
 
 ## Dependencies
 
-List what software your code depends on, as well as version numbers, like so:.
-
-1. R, version 3.4.1
+My code depends solely on R, version 3.4.1. Packages to supply Base-R are installed in the code. 
 
 ## Files
 
-List all other files contained in the repo, along with a brief description of each one, like so:
+My project contains the following files
 
 ### Data
 
-All data files are available as in a csv-format and in an r-data-set-object format. I use the latter in my scripts, as it automatically reads variables in the format I saved them in. The following list just mentions the csv-version:
+I have made all data files  available in a csv-format *and* in an r-data-set-object format. I use the latter in my scripts, as it automatically reads variables in the format I saved them in, but I know, that not everyone uses R. The following list just mentions the csv-versions of every file:
 
 1. url_agenda_df.csv: dataset scraped from the Danish parliment website. Includes information on all Parliament sessions of the term 2017-2018 and the number of mentions of the minister of immigration.
 2. all_members_data_raw.csv: raw dataset on 292 Danish Parliament members collected via the Danish Parliament API.
@@ -44,20 +42,22 @@ All data files are available as in a csv-format and in an r-data-set-object form
 
 ### Code
 
-1. 01_Get_and_clean_agenda_data.Rmd: 
-2. 02_Get_and_clean_member data.Rmd: 
-3. 03_Get_resume_data.Rmd: 
-4. 04_Clean_resume_data.Rmd: 
-5. 05_Text_analysis_discriminating_words.Rmd:
+1. 01_Get_and_clean_agenda_data.Rmd: Collects and analyses agenda data.
+2. 02_Get_and_clean_member data.Rmd: Collects and cleans member data from the API
+3. 03_Get_resume_data.Rmd: Collects the text resumes from the Parliament website
+4. 04_Clean_resume_data.Rmd: Cleans the text resumes from the Parliament website, e.g. by merging it with the member data
+5. 05_Text_analysis_discriminating_words.Rmd: Analyses and visualizes how use of words differ across party lines. 
 
 ### Results
 
-1. member_party_and_education.pdf: 
-2. which_sessions_are_relevant.pdf: 
-3. word_proportion_leftwing_dansk_folkeparti.pdf:
-4. word_proportion_government.pdf
+1. member_party_and_education.pdf: A plot showing how party member education - academic or not - differ between the parties in the Danish Parliament.
+2. which_sessions_are_relevant.pdf: A plot showing the amount of times the Minister of Immigration appears on a Parliament session agenda
+3. word_proportion_leftwing_dansk_folkeparti.pdf: Shows the difference between proportions of words between the leftwing parties and the right wing party Dansk Folkeparti
+4. word_proportion_government.pdf: Shows the difference between proportions of words between the leftwing parties and the Danish Government parties
 
 
 ## More Information
 
-Include any other details you think your user might need to reproduce your results. You may also include other information such as your contact information, credits, etc.
+Some of the scraper functions has been set to eval=F, as they may be outdated at one point. A knitted version of each of the coding files is available in the code-folder. 
+
+

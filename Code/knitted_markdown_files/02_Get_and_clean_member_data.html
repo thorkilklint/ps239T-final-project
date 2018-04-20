@@ -408,13 +408,15 @@ temporary_member_df&lt;-collect_ft_data(&quot;http://oda.ft.dk/api/Akt%C3%B8r?$i
 all_members_df&lt;- member_df
 
 #Save the raw data
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
 write.csv(all_members_df, &quot;all_members_data_raw.csv&quot;)
 saveRDS(all_members_df,file=&quot;all_members_data_raw.Rda&quot;)</code></pre>
 </section>
 <section id="step-2-cleaning-the-data" class="level1">
 <h1>STEP 2: Cleaning the data</h1>
 <p>Import the data</p>
-<pre class="r"><code>all_members_df&lt;-readRDS(&quot;all_members_data_raw.Rda&quot;)</code></pre>
+<pre class="r"><code>setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
+all_members_df&lt;-readRDS(&quot;all_members_data_raw.Rda&quot;)</code></pre>
 <p>##STEP 2.1: Rename the name variable</p>
 <pre class="r"><code>#I rename the variable from Danish to english
 names(all_members_df)[names(all_members_df) == &quot;navn&quot;] &lt;- &quot;name&quot;
@@ -548,17 +550,10 @@ ggplot(subset(all_members_df, !is.na(academic) &amp; !is.na(party)), aes(x=party
 </section>
 <section id="saving-membership-data" class="level1">
 <h1>Saving membership data</h1>
-<pre class="r"><code>str(all_members_df)</code></pre>
-<pre><code>## 'data.frame':    292 obs. of  8 variables:
-##  $ id            : chr  &quot;5&quot; &quot;12&quot; &quot;13&quot; &quot;17&quot; ...
-##  $ name          : chr  &quot;Frank Aaen&quot; &quot;Nicolai Wammen&quot; &quot;Sara Olsvig&quot; &quot;Christine Antorini&quot; ...
-##  $ typeid        : chr  &quot;5&quot; &quot;5&quot; &quot;5&quot; &quot;5&quot; ...
-##  $ biografi      : chr  &quot;&lt;?xml version=\&quot;1.0\&quot; encoding=\&quot;utf-16\&quot;?&gt;\n&lt;membersMember xmlns:xsi=\&quot;http://www.w3.org/2001/XMLSchema-instan&quot;| __truncated__ &quot;&lt;membersMember tid=\&quot;0\&quot;&gt;&lt;itemname&gt;SNIWA&lt;/itemname&gt;&lt;url&gt;http://www.ft.dk/da/medlemmer/folketingetsmedlemmer/nic&quot;| __truncated__ &quot;&lt;?xml version=\&quot;1.0\&quot; encoding=\&quot;utf-16\&quot;?&gt;\n&lt;membersMember xmlns:xsi=\&quot;http://www.w3.org/2001/XMLSchema-instan&quot;| __truncated__ &quot;&lt;membersMember tid=\&quot;0\&quot;&gt;&lt;itemname&gt;SCHAN&lt;/itemname&gt;&lt;url&gt;http://www.ft.dk/da/medlemmer/folketingetsmedlemmer/chr&quot;| __truncated__ ...
-##  $ party         : chr  &quot;(EL)&quot; &quot;(S)&quot; &quot;(IA)&quot; &quot;(S)&quot; ...
-##  $ education     : chr  &quot;Cand.oecon.&quot; &quot;Cand.scient.pol.&quot; &quot;Antropolog&quot; &quot;Stud.scient.pol.&quot; ...
-##  $ academic      : logi  TRUE TRUE TRUE FALSE TRUE TRUE ...
-##  $ education_fill: chr  &quot;Academic Eduction&quot; &quot;Academic Eduction&quot; &quot;Academic Eduction&quot; &quot;No Academic Eduction&quot; ...</code></pre>
-<pre class="r"><code>saveRDS(all_members_df,file=&quot;all_members_data.Rda&quot;)</code></pre>
+<pre class="r"><code>#str(all_members_df)
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
+saveRDS(all_members_df,file=&quot;all_members_data.Rda&quot;) #Save as R data
+write.csv(all_members_df, &quot;all_members_data.csv&quot;)#Save as csv</code></pre>
 </section>
 
 

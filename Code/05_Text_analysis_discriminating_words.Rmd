@@ -28,8 +28,6 @@ library(wordcloud2) # for wordclouds
 library(RColorBrewer) # for color palettes
 library(matrixStats) # for statistics
 library(ggplot2) #For plotting
-
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data")
 ```
 
 # STEP 1: PRE PROCESS AND CLEAN THE TEXT
@@ -106,7 +104,6 @@ I use the TM-package to set up a function for cleaning up the text. This functio
 
 ```{r}
 #I set up a vector of extra stopword
-
 #Stowords before stemming
 extra_stopwords_pre_stem<-c("formand","formanden", "kan", "ved", "spørgsmål", "folkeparti", "tak", "derfor")
 #Stopwords after stemming
@@ -123,7 +120,7 @@ party_stopwords<-c("Dansk Folkeparti", "Dansk Folkepartis",
                    "Socialistisk Folkeparti", "Socialistisk Folkepartis")
 
 ##Member names stopword
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
 all_members_df<-readRDS("all_members_data.Rda")
 member_first_last_name<-unlist(strsplit(all_members_df$name, " "))
 

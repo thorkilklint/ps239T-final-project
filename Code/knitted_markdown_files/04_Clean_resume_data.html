@@ -333,12 +333,12 @@ library(ggplot2) #To plot!</code></pre>
 <p>I start by loading the data</p>
 <pre class="r"><code>#Load the respective data sets
 getwd()</code></pre>
-<pre><code>## [1] &quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data&quot;</code></pre>
+<pre><code>## [1] &quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Code&quot;</code></pre>
 <pre class="r"><code>#Make a list to contain the data
 resumes_load &lt;- vector(&quot;list&quot;, length = 11)
 
 #Load the data into the list
-setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data&quot;)
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
 for (i in 1:length(resumes_load)){
   resumes_load[[i]]&lt;-readRDS(paste0(&quot;resume_debate_&quot;,i,&quot;.Rda&quot;))
 }</code></pre>
@@ -355,7 +355,7 @@ for (i in 1:length(resumes_load)){
 <h2>2.2 Education and party of the speaker</h2>
 <p>I load the member data</p>
 <pre class="r"><code>#Load the member data
-setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data&quot;)
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
 all_members_df&lt;-readRDS(&quot;all_members_data.Rda&quot;)
 
 #I make a shorter version of member data withoutunimportant variables
@@ -397,7 +397,7 @@ str(resumes_load[[1]]) </code></pre>
 ##  $ academic      : logi  FALSE FALSE FALSE FALSE FALSE FALSE ...
 ##  $ education_fill: chr  &quot;No Academic Eduction&quot; &quot;No Academic Eduction&quot; &quot;No Academic Eduction&quot; &quot;No Academic Eduction&quot; ...
 ##  $ text          : chr  &quot;19. møde (1. udgave - med forbehold for fejl og udeladelser) - Onsdag den 15. november 2017 kl. 13.00\r\n    19&quot;| __truncated__ &quot;\r\n    Beslutningsforslag nr. B 33 (Forslag til folketingsbeslutning om tilbagerulning af lovændringen om skær&quot;| __truncated__ &quot;\r\n    Det første spørgsmål er til justitsministeren af hr. Lars Aslan Rasmussen, Socialdemokratiet.\r\n    &quot; &quot;\r\n    Værsgo for oplæsning af spørgsmålet.\r\n    &quot; ...</code></pre>
-<p>And finally, I can remove V1 and V2 from the dataset</p>
+<p>And then, I can remove V1 and V2 from the dataset</p>
 <pre class="r"><code>for (i in 1:length(resumes_load)){
   resumes_load[[i]]&lt;-dplyr::select(resumes_load[[i]], -V1, -V2)
 }
@@ -613,7 +613,7 @@ immigration_debate_text_data&lt;-filter(immigration_debate_text_data, !str_detec
 <h1>5. Save the data</h1>
 <p>And now, I can save these data frames as one big R data frame!</p>
 <pre class="r"><code>getwd()</code></pre>
-<pre><code>## [1] &quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data&quot;</code></pre>
+<pre><code>## [1] &quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Code&quot;</code></pre>
 <pre class="r"><code>setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data&quot;)
 saveRDS(immigration_debate_text_data,file=&quot;immigration_debate_text_data.Rda&quot;)
 write.csv(immigration_debate_text_data,file=&quot;immigration_debate_text_data.csv&quot;)</code></pre>
