@@ -193,7 +193,7 @@ all_members_df$education_fill[all_members_df$academic==T]<-"Academic Eduction"
 all_members_df$education_fill[all_members_df$academic==F]<-"No Academic Eduction"
 
 #Make the plot
-ggplot(subset(all_members_df, !is.na(academic) & !is.na(party)), aes(x=party, fill=education_fill))+
+plot1<-ggplot(subset(all_members_df, !is.na(academic) & !is.na(party)), aes(x=party, fill=education_fill))+
   geom_bar()+
   ylab("Number of parlament members") +
   ylim(0,60)+
@@ -202,12 +202,19 @@ ggplot(subset(all_members_df, !is.na(academic) & !is.na(party)), aes(x=party, fi
   theme(axis.text.y = element_text(size= 13),
         axis.title.y = element_text(size= 13),
         title=element_text(size=15),
-        axis.text.x=element_text(size=13),
+        axis.text.x=element_text(size=11),
         axis.title.x=element_blank(),
         legend.position = "top",
         legend.title=element_blank(),
         legend.text = element_text(size=13))+
   scale_fill_ptol()
+plot1
+
+#Export the plot
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Results")
+ggsave(filename="member_education_and_party.jpg", 
+       plot=plot1,
+       width=18, height=12, units="cm")
 ```
 
 # Saving membership data

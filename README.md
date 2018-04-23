@@ -50,10 +50,10 @@ I have made all data files  available in a csv-format *and* in an r-data-set-obj
 
 ### Results
 
-1. member_party_and_education.pdf: A plot showing how party member education - academic or not - differ between the parties in the Danish Parliament.
-2. which_sessions_are_relevant.pdf: A plot showing the amount of times the Minister of Immigration appears on a Parliament session agenda
-3. word_proportion_leftwing_dansk_folkeparti.pdf: Shows the difference between proportions of words between the leftwing parties and the right wing party Dansk Folkeparti
-4. word_proportion_government.pdf: Shows the difference between proportions of words between the leftwing parties and the Danish Government parties
+1. member_education_and_party.jpg: A plot showing how party member education - academic or not - differ between the parties in the Danish Parliament.
+2. which_sessions_are_relevant.jpg: A plot showing the amount of times the Minister of Immigration appears on a Parliament session agenda
+3. word_proportion_leftwing_dansk_folkeparti.jpg: Shows the difference between proportions of words between the leftwing parties and the right wing party Dansk Folkeparti
+4. word_proportion_government.jpg: Shows the difference between proportions of words between the leftwing parties and the Danish Government parties
 
 
 ## More Information

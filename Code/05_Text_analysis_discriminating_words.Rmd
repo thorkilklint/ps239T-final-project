@@ -405,7 +405,7 @@ names(leftwing_gov_plot)[names(leftwing_gov_plot) == "score_gov_leftwing[c(1:10,
 leftwing_gov_plot$names <- factor(leftwing_gov_plot$names, levels = leftwing_gov_plot$names[order(-leftwing_gov_plot$value)])
 
 #Make the plot
-ggplot(leftwing_gov_plot, aes(x=names, y=value))+
+plot1<-ggplot(leftwing_gov_plot, aes(x=names, y=value))+
   geom_histogram(stat="identity")+
   theme_minimal()+
   coord_flip()+
@@ -414,6 +414,13 @@ ggplot(leftwing_gov_plot, aes(x=names, y=value))+
   ylab("Difference in proportion of words")+
   labs(title="Leftwing vs. Government")+
   theme(plot.title = element_text(hjust = 0.5))
+
+plot1
+
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Results")
+ggsave(filename="word_proportion_leftwing_government.jpg", 
+       plot=plot1,
+       width=18, height=12, units="cm")
 
 #For presentation
 #ggplot(leftwing_gov_plot, aes(x=names, y=value))+
@@ -451,7 +458,7 @@ names(leftwing_df_plot)[names(leftwing_df_plot) == "score_df_leftwing[c(1:10, 54
 leftwing_df_plot$names <- factor(leftwing_df_plot$names, levels = leftwing_df_plot$names[order(-leftwing_df_plot$value)])
 
 #Make the plot
-ggplot(leftwing_df_plot, aes(x=names, y=value))+
+plot2<-ggplot(leftwing_df_plot, aes(x=names, y=value))+
   geom_histogram(stat="identity")+
   theme_minimal()+
   coord_flip()+
@@ -460,6 +467,13 @@ ggplot(leftwing_df_plot, aes(x=names, y=value))+
   ylab("Difference in proportion of words")+
   labs(title="Leftwing vs. Dansk Folkeparti")+
   theme(plot.title = element_text(hjust = 0.5))
+
+plot2
+
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Results")
+ggsave(filename="word_proportion_leftwing_dansk_folkeparti.jpg", 
+       plot=plot2,
+       width=18, height=12, units="cm")
 
 #Make the plot for presentation
 #ggplot(leftwing_df_plot, aes(x=names, y=value))+
