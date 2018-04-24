@@ -130,7 +130,7 @@ To extract speaker name, I could have fooled around with a lot of different regu
 
 ```{r}
 #Load the member data
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 all_members_df<-readRDS("all_members_data.Rda")
 str(all_members_df)
 ```
@@ -170,7 +170,7 @@ debat1_df$statement <- as.character(debat1_df$statement)
 class(debat1_df$statement)
 
 #And now, I save the data
-#setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data")
+#setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 #getwd()
 #write.csv(debat1_df, "debate1_final_project.csv")
 #str(debat1_df)
@@ -289,7 +289,7 @@ I save the data, as the format of the website might change in a not so distant f
 ```{r}
 #And now, I save the data
 getwd()
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 write.csv(df_debates, "url_resume_df.csv")
 saveRDS(df_debates,file="url_resume_df.Rda")
 ```
@@ -299,7 +299,7 @@ Now, I will perform the first exercise (making a data frame of statements) acros
 
 ```{r}
 #Load data
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 df_debates<-readRDS(file="url_resume_df.Rda")
 ```
 
@@ -307,7 +307,7 @@ df_debates<-readRDS(file="url_resume_df.Rda")
 With help from the agenda-dataset, I can limit the debate-urls to the relevant debates (where the minister of immigration occurs more than 2 times on the agenda)
 ```{r}
 #Load the agenda data
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 url_agenda_data<-readRDS("url_agenda_df.Rda")
 
 #Make a df with only the urls for the agendas of the relevant debates
@@ -317,7 +317,7 @@ relevant_agenda_data<-url_agenda_data[url_agenda_data$mentions>2,]
 names(relevant_agenda_data)[names(relevant_agenda_data) == "url"] <- "agenda_url"
 
 #Load the debate data
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 df_resumes_merge<-readRDS("url_resume_df.Rda")
 
 #I rename the variable url to resume-url
@@ -330,7 +330,7 @@ df_resumes_merge$date<-as.Date(df_resumes_merge$date, format="d%m%y%")
 relevant_debates_df<- dplyr::left_join(relevant_agenda_data, df_resumes_merge, by = "date")
 
 #Save the data
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 saveRDS(relevant_debates_df,file="resume_urls_to_loop_over.Rda")
 write.csv(relevant_debates_df, "resume_urls_to_loop_over.csv")
 ```
@@ -339,7 +339,7 @@ write.csv(relevant_debates_df, "resume_urls_to_loop_over.csv")
 And then, I run the forloop (Now, with a try catch)
 ```{r, eval=FALSE}
 #Load the data
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 relevant_debates_df<-readRDS("resume_urls_to_loop_over.Rda")
 
 #Make a list the length of the objects
@@ -394,7 +394,7 @@ str(resumes[[1]])
 Save the data
 ```{r, eval=FALSE}
 #Save the respective data sets
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 getwd()
 for (i in 1:length(resumes)){
   saveRDS(resumes[[i]],file=paste0("resume_debate_",i,".Rda"))

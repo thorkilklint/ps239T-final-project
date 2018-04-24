@@ -35,7 +35,7 @@ I start by opening my statement dataset
 ```{r}
 #Open the data
 getwd()
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 immigration_debate_text_data<-readRDS("immigration_debate_text_data.Rda")
 ```
 When using the tm-package to structure text data in the corpus format, the importet data-set has to have the following collumns in order: 
@@ -120,7 +120,7 @@ party_stopwords<-c("Dansk Folkeparti", "Dansk Folkepartis",
                    "Socialistisk Folkeparti", "Socialistisk Folkepartis")
 
 ##Member names stopword
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 all_members_df<-readRDS("all_members_data.Rda")
 member_first_last_name<-unlist(strsplit(all_members_df$name, " "))
 
@@ -417,7 +417,7 @@ plot1<-ggplot(leftwing_gov_plot, aes(x=names, y=value))+
 
 plot1
 
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Results")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Results")
 ggsave(filename="word_proportion_leftwing_government.jpg", 
        plot=plot1,
        width=18, height=12, units="cm")
@@ -470,7 +470,7 @@ plot2<-ggplot(leftwing_df_plot, aes(x=names, y=value))+
 
 plot2
 
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Results")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Results")
 ggsave(filename="word_proportion_leftwing_dansk_folkeparti.jpg", 
        plot=plot2,
        width=18, height=12, units="cm")

@@ -47,6 +47,7 @@ I have made all data files  available in a csv-format *and* in an r-data-set-obj
 3. 03_Get_resume_data.Rmd: Collects the text resumes from the Parliament website
 4. 04_Clean_resume_data.Rmd: Cleans the text resumes from the Parliament website, e.g. by merging it with the member data
 5. 05_Text_analysis_discriminating_words.Rmd: Analyses and visualizes how use of words differ across party lines. 
+6. 06_Structural_topic_model.Rmd: A preliminary use of structural equation models to take the meta variables into account in the analysis
 
 ### Results
 

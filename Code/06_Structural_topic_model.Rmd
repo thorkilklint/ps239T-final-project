@@ -10,22 +10,15 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # 1. Goals of this script
-This script aims at conducting a introductory topic model for the textdata from the Danish Parliament debates
+This script aims at conducting a quick topic model for the textdata from the Danish Parliament debates
 
 ## 2. Necessities
 ```{r, message=F}
 rm(list=ls())
 library(stringr) #For working with string data
-library(tm) # Framework for text mining
 library(ggplot2) # for plotting word frequencies
 library(dplyr)
-library(RTextTools) # a machine learning package for text classification written in R
-library(SnowballC) # for stemming
-library(data.table)
-library(wordcloud2) # for wordclouds
-library(RColorBrewer) # for color palettes
-library(matrixStats) # for statistics
-library(ggplot2) #For plotting
+library(stm)
 ```
 
 # STEP 1: PRE PROCESS AND CLEAN THE TEXT
@@ -33,19 +26,26 @@ I start by opening my statement dataset
 ```{r}
 #Open the data
 getwd()
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 immigration_debate_text_data<-readRDS("immigration_debate_text_data.Rda")
+str(immigration_debate_text_data)
 ```
-When using the tm-package to structure text data in the corpus format, the importet data-set has to have the following collumns in order: 
-1. doc_id - a unique string for each document
-2. text - the text to be examined
-... - any other columns will be automatically cataloagued as meta-data.
 
-I set up the doc_id variable. I give this variable intuitive names based on the party of the speaker, as this allows me to split the dataset into different parties / political blocs later on
 ```{r}
-#A doc ID variable with party name and number of statement, so that I can sort
-immigration_debate_text_data$doc_id <- paste0(immigration_debate_text_data$party, "_",
-                                             1:nrow(immigration_debate_text_data))
+#Add a variable for which debate the statement is taken from
+#View(immigration_debate_text_data)
+immigration_debate_text_data$debate<-NA
+immigration_debate_text_data$debate[1:113]<-1
+immigration_debate_text_data$debate[114:256]<-2
+immigration_debate_text_data$debate[257:355]<-3
+immigration_debate_text_data$debate[356:390]<-4
+immigration_debate_text_data$debate[391:471]<-5
+immigration_debate_text_data$debate[472:501]<-6 
+immigration_debate_text_data$debate[502:529]<-7
+immigration_debate_text_data$debate[530:551]<-8
+immigration_debate_text_data$debate[552:575]<-9
+immigration_debate_text_data$debate[576:607]<-10
+immigration_debate_text_data$debate[608:778]<-11
 ```
 Further, the text data contains to symbols, not recognized by R as punctuation, namely » and «. I remove these.
 ```{r}
@@ -58,12 +58,80 @@ immigration_debate_text_data$text<-str_replace_all(immigration_debate_text_data$
 sum(str_detect(immigration_debate_text_data$text, "«"))
 sum(str_detect(immigration_debate_text_data$text, "»"))
 ```
-
-Now, I just have to reorder the variables
+Set up extra stopwords
 ```{r}
-#Reorder the variables
-immigration_debate_text_data<-select(immigration_debate_text_data, doc_id, text,name, time, party, academic)
+#I set up a vector of extra stopword
+#Stowords before stemming
+extra_stopwords_pre_stem<-c("formand","formanden", "kan", "ved", "spørgsmål", "folkeparti", "tak", "derfor")
+#Stopwords after stemming
+extra_stopwords_post_stem<-c("sig", "minist", "ordfør", "gør","regering","lovforslag","forslag")
+#Party stopwords
+party_stopwords<-c("Dansk Folkeparti", "Dansk Folkepartis",
+                   "Socialdemokratiet","Socialdemokratiets",
+                   "Venstre","Venstres",
+                   "Konservativt Folkeparti","Konservativt Folkepartis",
+                   "Alternativet", "Alternativets",
+                   "Enhedslisten","Enhedslistens",
+                   "Liberal Alliance", "Liberal Alliances",
+                   "Radikale Venstre", "Radikale Venstres",
+                   "Socialistisk Folkeparti", "Socialistisk Folkepartis")
 
-#Check out the structure
-str(immigration_debate_text_data)
+##Member names stopword
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
+all_members_df<-readRDS("all_members_data.Rda")
+member_first_last_name<-unlist(strsplit(all_members_df$name, " "))
 ```
+
+Now, I take out the meta data, that is not expected to carry information
+```{r}
+immigration_debate_text_data<-select(immigration_debate_text_data, -chairman, -id, -education_fill, -agenda, -statement_number, -time)
+```
+
+And since the stm-package cannot deal with missing data, I remove every statement with missing data
+```{r}
+# Remove incomplete observations
+immigration_debate_text_data_comp <- immigration_debate_text_data[complete.cases(immigration_debate_text_data), ]
+```
+
+Now, I can preproces the text
+```{r}
+# Pre-process
+temp<-textProcessor(documents=immigration_debate_text_data_comp$text, 
+                    metadata=immigration_debate_text_data_comp,
+                    customstopwords=c(tm::stopwords("da"),
+                                      member_first_last_name))
+meta<-temp$meta #Includes metadata
+vocab<-temp$vocab
+docs<-temp$documents
+out <- prepDocuments(docs, vocab, meta, lower.thresh=10) #Sets the lower threshold for frequency
+docs<-out$documents
+vocab<-out$vocab
+meta <-out$meta
+```
+
+# STEP 2: ESTIMATE THE TOPIC MODEL
+I will now estimate a topic model with 5 topics by regressing topical prevalence on speaker party, speaker education, and debate-session. 
+
+```{r}
+model <- stm(docs,vocab, 5, prevalence=~party+debate+academic, data=meta, seed = 1)
+```
+
+# STEP 3: EXPLORING THE MODEL
+
+Let's see what our model came up with! 
+
+- `topicQuality` plots topics on their coherence and exclusivity scores.
+- `labelTopics` gives the top words for each topic. 
+- `findThoughts` gives the top documents for each topic (the documents with the highest proportion of each topic)
+
+I then use those to apply hand labels to each topic.
+
+```{r}
+# Topic Quality plot
+topicQuality(model=model, documents=docs)
+
+# Top Words
+labelTopics(model)
+
+# Example Docs
+findThoughts(model,texts=meta$name,n=3,topics=1:5)

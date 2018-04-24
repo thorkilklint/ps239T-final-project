@@ -1,5 +1,5 @@
 ---
-title: "Scraping homework"
+title: "Cleaing Resume Data"
 author: "Thorkil"
 date: "18/3/2018"
 output: html_document
@@ -36,7 +36,7 @@ getwd()
 resumes_load <- vector("list", length = 11)
 
 #Load the data into the list
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 for (i in 1:length(resumes_load)){
   resumes_load[[i]]<-readRDS(paste0("resume_debate_",i,".Rda"))
 }
@@ -57,7 +57,7 @@ for (i in 1:length(resumes_load)){
 I load the member data
 ```{r}
 #Load the member data
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 all_members_df<-readRDS("all_members_data.Rda")
 
 #I make a shorter version of member data withoutunimportant variables
@@ -314,7 +314,7 @@ immigration_debate_text_data<-filter(immigration_debate_text_data, !str_detect(i
 And now, I can save these data frames as one big R data frame!
 ```{r}
 getwd()
-setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data")
+setwd("/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data")
 saveRDS(immigration_debate_text_data,file="immigration_debate_text_data.Rda")
 write.csv(immigration_debate_text_data,file="immigration_debate_text_data.csv")
 ```

@@ -404,7 +404,7 @@ debat1_df$time &lt;- stringr::str_extract(debat1_df[,1], pattern=time_pattern)</
 <h3>2.3 Speaker name</h3>
 <p>To extract speaker name, I could have fooled around with a lot of different regular expressions, trying to sort out the name (frankly, I did). Unfortunately, the names are formatted quite differently - som are in parenthesis, som are not - all depending on whether the speaker is a chair, minister, speaker or leading speaker when the statement was given. This is interesting, and would be nice to derive in future work, but for now, I just want their name. To overcome this challenge, I will rely on the stringr str_extract function, that returns all the elements of a string that match a pattern. So all I need is a pattern of all the parliament member names. I could type it in by hand, but luckily, the Danish Parliament API is helpsome.Therefore, I have set up the “Get_resume_data.Rmd”-file, to produce a dataset with parliament member name, parliament member party and parliament member education</p>
 <pre class="r"><code>#Load the member data
-setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data&quot;)
 all_members_df&lt;-readRDS(&quot;all_members_data.Rda&quot;)
 str(all_members_df)</code></pre>
 <pre><code>## 'data.frame':    292 obs. of  8 variables:
@@ -446,7 +446,7 @@ class(debat1_df$statement)</code></pre>
 class(debat1_df$statement)</code></pre>
 <pre><code>## [1] &quot;character&quot;</code></pre>
 <pre class="r"><code>#And now, I save the data
-#setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/Final Project/Scripts/get_data&quot;)
+#setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data&quot;)
 #getwd()
 #write.csv(debat1_df, &quot;debate1_final_project.csv&quot;)
 #str(debat1_df)</code></pre>
@@ -548,8 +548,8 @@ df_debates$url &lt;- paste0(&quot;http://ft.dk&quot;, df_debates$url, sep=&quot;
 <p>I save the data, as the format of the website might change in a not so distant future</p>
 <pre class="r"><code>#And now, I save the data
 getwd()</code></pre>
-<pre><code>## [1] &quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Code&quot;</code></pre>
-<pre class="r"><code>setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
+<pre><code>## [1] &quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Code&quot;</code></pre>
+<pre class="r"><code>setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data&quot;)
 write.csv(df_debates, &quot;url_resume_df.csv&quot;)
 saveRDS(df_debates,file=&quot;url_resume_df.Rda&quot;)</code></pre>
 </section>
@@ -557,13 +557,13 @@ saveRDS(df_debates,file=&quot;url_resume_df.Rda&quot;)</code></pre>
 <h2>3.2 Scraping all the html-files</h2>
 <p>Now, I will perform the first exercise (making a data frame of statements) across many debates.</p>
 <pre class="r"><code>#Load data
-setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data&quot;)
 df_debates&lt;-readRDS(file=&quot;url_resume_df.Rda&quot;)</code></pre>
 <section id="the-relevant-urls" class="level3">
 <h3>3.2.1 The relevant URL’s</h3>
 <p>With help from the agenda-dataset, I can limit the debate-urls to the relevant debates (where the minister of immigration occurs more than 2 times on the agenda)</p>
 <pre class="r"><code>#Load the agenda data
-setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data&quot;)
 url_agenda_data&lt;-readRDS(&quot;url_agenda_df.Rda&quot;)
 
 #Make a df with only the urls for the agendas of the relevant debates
@@ -573,7 +573,7 @@ relevant_agenda_data&lt;-url_agenda_data[url_agenda_data$mentions&gt;2,]
 names(relevant_agenda_data)[names(relevant_agenda_data) == &quot;url&quot;] &lt;- &quot;agenda_url&quot;
 
 #Load the debate data
-setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data&quot;)
 df_resumes_merge&lt;-readRDS(&quot;url_resume_df.Rda&quot;)
 
 #I rename the variable url to resume-url
@@ -586,7 +586,7 @@ df_resumes_merge$date&lt;-as.Date(df_resumes_merge$date, format=&quot;d%m%y%&quo
 relevant_debates_df&lt;- dplyr::left_join(relevant_agenda_data, df_resumes_merge, by = &quot;date&quot;)
 
 #Save the data
-setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data&quot;)
 saveRDS(relevant_debates_df,file=&quot;resume_urls_to_loop_over.Rda&quot;)
 write.csv(relevant_debates_df, &quot;resume_urls_to_loop_over.csv&quot;)</code></pre>
 </section>
@@ -594,7 +594,7 @@ write.csv(relevant_debates_df, &quot;resume_urls_to_loop_over.csv&quot;)</code><
 <h3>3.2.2 Running the forloop</h3>
 <p>And then, I run the forloop (Now, with a try catch)</p>
 <pre class="r"><code>#Load the data
-setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data&quot;)
 relevant_debates_df&lt;-readRDS(&quot;resume_urls_to_loop_over.Rda&quot;)
 
 #Make a list the length of the objects
@@ -647,7 +647,7 @@ for (i in 1:nrow(relevant_debates_df)){
 str(resumes[[1]])</code></pre>
 <p>Save the data</p>
 <pre class="r"><code>#Save the respective data sets
-setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/ps239T-final-project/Data&quot;)
+setwd(&quot;/Users/thorkilklint/Documents/Berkeley/PS239T_Computational/thorkil-klint-ps239T-final-project/Data&quot;)
 getwd()
 for (i in 1:length(resumes)){
   saveRDS(resumes[[i]],file=paste0(&quot;resume_debate_&quot;,i,&quot;.Rda&quot;))
